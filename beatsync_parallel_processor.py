@@ -16,6 +16,7 @@ import librosa
 import re
 from datetime import datetime
 from typing import Tuple
+from pathlib import Path
 
 # 启用行缓冲，确保日志实时写出（不影响功能/算法）
 try:
@@ -110,8 +111,17 @@ def process_with_modular(dance_video: str, bgm_video: str, output_video: str) ->
     """使用modular版本处理"""
     try:
         print("  使用modular版本处理...")
+        # 获取项目根目录（脚本所在目录的父目录）
+        script_dir = Path(__file__).parent.absolute()
+        project_root = script_dir
+        
+        modular_script = project_root / "beatsync_fine_cut_modular.py"
+        if not modular_script.exists():
+            # 如果找不到，尝试当前工作目录
+            modular_script = Path("beatsync_fine_cut_modular.py")
+        
         cmd = [
-            "python3", "beatsync_fine_cut_modular.py",
+            "python3", str(modular_script),
             "--dance", dance_video,
             "--bgm", bgm_video,
             "--output", output_video,
@@ -123,7 +133,8 @@ def process_with_modular(dance_video: str, bgm_video: str, output_video: str) ->
             "--lib-threads", "1"
         ]
         
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+        # 设置工作目录为项目根目录
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=300, cwd=str(project_root))
         info = extract_alignment_info(result.stdout, "modular版本")
         info['return_code'] = result.returncode
         info['stderr'] = result.stderr
@@ -143,8 +154,17 @@ def process_with_v2(dance_video: str, bgm_video: str, output_video: str) -> dict
     """使用V2版本处理"""
     try:
         print("  使用V2版本处理...")
+        # 获取项目根目录（脚本所在目录的父目录）
+        script_dir = Path(__file__).parent.absolute()
+        project_root = script_dir
+        
+        v2_script = project_root / "beatsync_badcase_fix_trim_v2.py"
+        if not v2_script.exists():
+            # 如果找不到，尝试当前工作目录
+            v2_script = Path("beatsync_badcase_fix_trim_v2.py")
+        
         cmd = [
-            "python3", "beatsync_badcase_fix_trim_v2.py",
+            "python3", str(v2_script),
             "--dance", dance_video,
             "--bgm", bgm_video,
             "--output", output_video,
@@ -156,7 +176,8 @@ def process_with_v2(dance_video: str, bgm_video: str, output_video: str) -> dict
             "--lib-threads", "1"
         ]
         
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+        # 设置工作目录为项目根目录
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=300, cwd=str(project_root))
         info = extract_alignment_info(result.stdout, "V2版本")
         info['return_code'] = result.returncode
         info['stderr'] = result.stderr
