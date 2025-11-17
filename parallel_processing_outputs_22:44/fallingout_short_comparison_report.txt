@@ -1,0 +1,30 @@
+BeatSync 并行处理对比报告 - fallingout_short
+============================================================
+处理时间: 2025-11-16 22:46:11
+输入文件:
+  dance: input_allcases/fallingout_short/dance.MP4
+  bgm: input_allcases/fallingout_short/bgm.MP4
+============================================================
+
+modular版本处理结果:
+------------------------------
+状态: 成功
+输出文件: parallel_processing_outputs_22:44/fallingout_short_modular.mp4
+对齐点: dance=20.96s, bgm=23.97s
+置信度: 0.4755
+
+V2版本处理结果:
+------------------------------
+状态: 成功
+输出文件: parallel_processing_outputs_22:44/fallingout_short_v2.mp4
+对齐点: dance=20.96s, bgm=23.97s
+置信度: 0.3619
+
+对比分析:
+------------------------------
+两个版本都成功处理
+对齐点差异:
+  modular: dance=20.96s, bgm=23.97s
+  V2:      dance=20.96s, bgm=23.97s
+
+建议: 请观看两个输出视频，选择对齐效果更好的版本

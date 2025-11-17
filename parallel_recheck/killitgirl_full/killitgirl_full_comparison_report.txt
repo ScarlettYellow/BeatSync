@@ -1,0 +1,30 @@
+BeatSync 并行处理对比报告 - killitgirl_full
+============================================================
+处理时间: 2025-11-16 14:25:09
+输入文件:
+  dance: input_allcases_lowp/killitgirl_full/dance.mp4
+  bgm: input_allcases_lowp/killitgirl_full/bgm.mp4
+============================================================
+
+modular版本处理结果:
+------------------------------
+状态: 成功
+输出文件: parallel_recheck/killitgirl_full/killitgirl_full_modular.mp4
+对齐点: dance=30.00s, bgm=30.00s
+置信度: 0.0253
+
+V2版本处理结果:
+------------------------------
+状态: 成功
+输出文件: parallel_recheck/killitgirl_full/killitgirl_full_v2.mp4
+对齐点: dance=67.73s, bgm=55.80s
+置信度: 0.1999
+
+对比分析:
+------------------------------
+两个版本都成功处理
+对齐点差异:
+  modular: dance=30.00s, bgm=30.00s
+  V2:      dance=67.73s, bgm=55.80s
+
+建议: 请观看两个输出视频，选择对齐效果更好的版本
