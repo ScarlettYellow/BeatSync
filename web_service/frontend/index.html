@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BeatSync 视频对齐工具</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>BeatSync 视频对齐工具</h1>
+        
+        <!-- 上传区域 -->
+        <div class="upload-section">
+            <div class="upload-area" id="dance-upload">
+                <h2>原始视频 (Dance Video)</h2>
+                <input type="file" id="dance-file" accept="video/*" style="display: none;">
+                <button class="upload-btn" onclick="document.getElementById('dance-file').click()">
+                    选择文件
+                </button>
+                <p class="upload-hint">或拖拽文件到此处</p>
+                <div class="file-info" id="dance-info" style="display: none;">
+                    <span id="dance-filename"></span>
+                    <span id="dance-size"></span>
+                </div>
+            </div>
+            
+            <div class="upload-area" id="bgm-upload">
+                <h2>音源视频 (BGM Video)</h2>
+                <input type="file" id="bgm-file" accept="video/*" style="display: none;">
+                <button class="upload-btn" onclick="document.getElementById('bgm-file').click()">
+                    选择文件
+                </button>
+                <p class="upload-hint">或拖拽文件到此处</p>
+                <div class="file-info" id="bgm-info" style="display: none;">
+                    <span id="bgm-filename"></span>
+                    <span id="bgm-size"></span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 处理按钮 -->
+        <div class="action-section">
+            <button class="process-btn" id="process-btn" disabled>
+                开始处理
+            </button>
+        </div>
+        
+        <!-- 状态显示 -->
+        <div class="status-section">
+            <p class="status-text" id="status-text">处理状态: 等待中...</p>
+        </div>
+        
+        <!-- 下载按钮 -->
+        <div class="download-section" id="download-section" style="display: none;">
+            <button class="download-btn" id="download-btn">
+                下载结果
+            </button>
+        </div>
+    </div>
+    
+    <script src="script.js"></script>
+</body>
+</html>
+
