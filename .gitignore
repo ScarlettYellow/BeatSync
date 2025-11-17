@@ -1,0 +1,83 @@
+# BeatSync Git 忽略文件
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+
+# 虚拟环境
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 缓存和临时文件
+.beatsync_cache/
+*.wav
+*.mp4
+*.MP4
+*.avi
+*.mkv
+*.mov
+*.log
+*.pid
+*.time
+temp_*
+tmp_*
+
+# 输出目录
+*_output/
+*_outputs/
+output*/
+parallel_processing_outputs/
+regression_test_outputs/
+test_*_outputs/
+test_*_scenarios/
+corrected_*_output/
+program_*_output/
+v2_*_outputs/
+batch_*_outputs/
+
+# 测试转换文件
+test_multiple_videoformats_converted/
+
+# 输入视频（通常很大，不纳入版本控制）
+# input_allcases/
+# input_allcases_lowp/
+# input_false/
+# newcases/
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 备份文件
+*.bak
+*.backup
+*_backup/
+
+# 日志文件
+*.log
+logs/
+
+# 临时脚本
+*.sh.bak
+
+# 聊天记录（如果不需要版本控制）
+chat_history/
+
+# 项目文档备份（如果不需要版本控制）
+project_docs/
+
