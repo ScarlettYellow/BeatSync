@@ -174,15 +174,14 @@ async def process_video(
         )
         
         if success:
-            # 查找输出文件（优先modular版本，其次v2版本）
+            # 查找输出文件
             modular_output = output_dir / f"{task_id}_modular.mp4"
             v2_output = output_dir / f"{task_id}_v2.mp4"
             
-            if modular_output.exists():
-                output_file = modular_output
-            elif v2_output.exists():
-                output_file = v2_output
-            else:
+            modular_exists = modular_output.exists()
+            v2_exists = v2_output.exists()
+            
+            if not modular_exists and not v2_exists:
                 # 记录详细错误
                 error_msg = f"处理完成但未找到输出文件。输出目录: {output_dir}，文件列表: {list(output_dir.glob('*'))}"
                 print(f"ERROR: {error_msg}")
@@ -193,12 +192,25 @@ async def process_video(
                     "message": "处理完成但未找到输出文件"
                 }
             
-            return {
+            # 返回所有可用的输出文件
+            result = {
                 "task_id": task_id,
                 "status": "success",
-                "output_file": str(output_file),
                 "message": "处理成功"
             }
+            
+            if modular_exists:
+                result["modular_output"] = str(modular_output)
+            if v2_exists:
+                result["v2_output"] = str(v2_output)
+            
+            # 为了兼容，保留output_file字段（优先modular）
+            if modular_exists:
+                result["output_file"] = str(modular_output)
+            elif v2_exists:
+                result["output_file"] = str(v2_output)
+            
+            return result
         else:
             # 记录失败原因
             print(f"ERROR: 并行处理器返回失败，task_id: {task_id}")
@@ -245,12 +257,13 @@ async def process_video(
 
 
 @app.get("/api/download/{task_id}")
-async def download_result(task_id: str):
+async def download_result(task_id: str, version: Optional[str] = None):
     """
     下载处理结果
     
     参数:
         task_id: 任务ID
+        version: 版本类型 ("modular" 或 "v2")，如果不指定则下载modular版本
     
     返回:
         视频文件（二进制流）
@@ -260,21 +273,30 @@ async def download_result(task_id: str):
     if not output_dir.exists():
         raise HTTPException(status_code=404, detail="任务不存在")
     
-    # 优先查找modular版本，其次v2版本
     modular_output = output_dir / f"{task_id}_modular.mp4"
     v2_output = output_dir / f"{task_id}_v2.mp4"
     
-    if modular_output.exists():
+    # 根据version参数选择文件
+    if version == "v2" and v2_output.exists():
+        output_file = v2_output
+        filename = f"beatsync_{task_id}_v2.mp4"
+    elif version == "modular" and modular_output.exists():
         output_file = modular_output
+        filename = f"beatsync_{task_id}_modular.mp4"
+    elif modular_output.exists():
+        # 默认返回modular版本
+        output_file = modular_output
+        filename = f"beatsync_{task_id}_modular.mp4"
     elif v2_output.exists():
         output_file = v2_output
+        filename = f"beatsync_{task_id}_v2.mp4"
     else:
         raise HTTPException(status_code=404, detail="输出文件不存在")
     
     return FileResponse(
         str(output_file),
         media_type='video/mp4',
-        filename=f"beatsync_{task_id}.mp4"
+        filename=filename
     )
 
 

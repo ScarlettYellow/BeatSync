@@ -7,7 +7,9 @@ let state = {
     bgmFileId: null,
     taskId: null,
     danceFile: null,
-    bgmFile: null
+    bgmFile: null,
+    modularOutput: null,  // modular版本输出文件路径
+    v2Output: null        // v2版本输出文件路径
 };
 
 // DOM元素
@@ -34,7 +36,9 @@ function resetState() {
         bgmFileId: null,
         taskId: null,
         danceFile: null,
-        bgmFile: null
+        bgmFile: null,
+        modularOutput: null,
+        v2Output: null
     };
     
     // 清空文件输入
@@ -223,6 +227,8 @@ async function processVideo() {
         
         if (result.status === 'success') {
             state.taskId = result.task_id;
+            state.modularOutput = result.modular_output || null;
+            state.v2Output = result.v2_output || null;
             updateStatus('处理完成！', 'success');
             downloadSection.style.display = 'block';
         } else {
@@ -247,33 +253,68 @@ function updateStatus(message, type = '') {
     }
 }
 
-// 下载结果
+// 下载单个文件
+async function downloadFile(url, filename) {
+    try {
+        const response = await fetch(url);
+        if (!response.ok) {
+            throw new Error(`下载失败: ${response.statusText}`);
+        }
+        
+        const blob = await response.blob();
+        const downloadUrl = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = downloadUrl;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(downloadUrl);
+        
+        return true;
+    } catch (error) {
+        console.error(`下载 ${filename} 失败:`, error);
+        return false;
+    }
+}
+
+// 下载结果（自动下载所有可用版本）
 async function downloadResult() {
     if (!state.taskId) {
         alert('没有可下载的结果');
         return;
     }
     
-    try {
-        const response = await fetch(`${API_BASE_URL}/api/download/${state.taskId}`);
-        
-        if (!response.ok) {
-            throw new Error('下载失败');
-        }
-        
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `beatsync_${state.taskId}.mp4`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        window.URL.revokeObjectURL(url);
-        
-    } catch (error) {
-        alert('下载失败: ' + error.message);
-        console.error('Download error:', error);
+    const downloads = [];
+    
+    // 下载modular版本
+    if (state.modularOutput) {
+        downloads.push(
+            downloadFile(
+                `${API_BASE_URL}/api/download/${state.taskId}?version=modular`,
+                `beatsync_${state.taskId}_modular.mp4`
+            )
+        );
+    }
+    
+    // 下载v2版本
+    if (state.v2Output) {
+        // 延迟一下，避免浏览器阻止多个下载
+        setTimeout(() => {
+            downloadFile(
+                `${API_BASE_URL}/api/download/${state.taskId}?version=v2`,
+                `beatsync_${state.taskId}_v2.mp4`
+            );
+        }, 500);
+    }
+    
+    // 等待所有下载完成
+    const results = await Promise.all(downloads);
+    const successCount = results.filter(r => r).length;
+    const totalCount = downloads.length + (state.v2Output ? 1 : 0);
+    
+    if (successCount < totalCount) {
+        alert(`下载完成：${successCount}/${totalCount} 个文件成功`);
     }
 }
 
