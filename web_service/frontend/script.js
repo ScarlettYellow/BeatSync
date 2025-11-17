@@ -8,7 +8,7 @@ const API_BASE_URL = (() => {
     }
     // 生产环境：从环境变量或配置中获取
     // TODO: 替换为实际的Render后端URL，例如：'https://beatsync-backend.onrender.com'
-    return window.API_BASE_URL || 'https://beatsync-backend.onrender.com';
+    return window.API_BASE_URL || 'https://beatsync-backend-asha.onrender.com';
 })();
 
 // 状态管理
