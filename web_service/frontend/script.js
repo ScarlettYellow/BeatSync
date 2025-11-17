@@ -255,7 +255,11 @@ async function processVideo() {
         
     } catch (error) {
         const errorMsg = error.message || '处理失败';
-        updateStatus(`处理失败: ${errorMsg}`, 'error');
+        if (errorMsg.includes('超时') || errorMsg.includes('timeout') || errorMsg.includes('aborted')) {
+            updateStatus(`处理超时: 视频处理时间过长。Render免费层有超时限制，建议使用较小的测试视频或升级到付费计划。`, 'error');
+        } else {
+            updateStatus(`处理失败: ${errorMsg}`, 'error');
+        }
         console.error('Process error:', error);
     } finally {
         processBtn.disabled = false;
