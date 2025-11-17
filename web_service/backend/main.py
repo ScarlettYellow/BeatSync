@@ -25,9 +25,18 @@ sys.path.insert(0, str(project_root))
 app = FastAPI(title="BeatSync API", version="1.0.0")
 
 # 配置CORS（允许前端跨域访问）
+# 从环境变量获取允许的域名，默认允许所有（开发环境）
+allowed_origins = os.getenv("ALLOWED_ORIGINS", "*").split(",")
+if allowed_origins == ["*"]:
+    # 开发环境：允许所有来源
+    allow_origins_list = ["*"]
+else:
+    # 生产环境：限制具体域名
+    allow_origins_list = [origin.strip() for origin in allowed_origins]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # 生产环境应限制具体域名
+    allow_origins=allow_origins_list,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

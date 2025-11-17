@@ -1,5 +1,15 @@
-// API基础URL（开发环境）
-const API_BASE_URL = 'http://localhost:8000';
+// API基础URL（根据环境自动选择）
+// 开发环境：使用localhost
+// 生产环境：使用Render后端URL（需要替换为实际URL）
+const API_BASE_URL = (() => {
+    // 如果是本地开发环境
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        return 'http://localhost:8000';
+    }
+    // 生产环境：从环境变量或配置中获取
+    // TODO: 替换为实际的Render后端URL，例如：'https://beatsync-backend.onrender.com'
+    return window.API_BASE_URL || 'https://beatsync-backend.onrender.com';
+})();
 
 // 状态管理
 let state = {
