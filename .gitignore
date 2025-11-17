@@ -81,3 +81,6 @@ chat_history/
 # 项目文档备份（如果不需要版本控制）
 project_docs/
 
+# Numba缓存
+.numba_cache/
+
