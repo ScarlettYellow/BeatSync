@@ -1,8 +1,11 @@
 #!/bin/bash
 # 检查监控状态
 
-PID_FILE=".git_monitor.pid"
-LOG_FILE=".git_monitor.log"
+# 获取项目根目录（脚本在scripts/git/目录下）
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+PID_FILE="$PROJECT_ROOT/.git_monitor.pid"
+LOG_FILE="$PROJECT_ROOT/.git_monitor.log"
 
 if [ ! -f "$PID_FILE" ]; then
     echo "状态: ❌ 未运行"

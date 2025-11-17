@@ -33,8 +33,8 @@ def create_test_scenarios():
     try:
         os.chmod(read_only_dir, 0o555)  # 只读权限
         scenarios['permission_denied'] = {
-            'dance': 'test_multiple_videoformats/echo/dance.mp4',  # 使用真实文件
-            'bgm': 'test_multiple_videoformats/echo/bgm.mp4',
+            'dance': 'test_data/test_multiple_videoformats/echo/dance.mp4',  # 使用真实文件
+            'bgm': 'test_data/test_multiple_videoformats/echo/bgm.mp4',
             'output': str(read_only_dir / 'output.mp4'),
             'expected_error': '权限不足',
             'cleanup': lambda: os.chmod(read_only_dir, 0o755)  # 恢复权限以便清理

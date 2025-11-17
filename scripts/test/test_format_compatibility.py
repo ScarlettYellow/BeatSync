@@ -132,8 +132,8 @@ def run_test(dance_path: str, bgm_path: str, output_path: str,
 
 def main():
     # 测试配置
-    base_dir = Path('test_multiple_videoformats')
-    converted_dir = Path('test_multiple_videoformats_converted')
+    base_dir = Path('test_data/test_multiple_videoformats')
+    converted_dir = Path('test_data/test_multiple_videoformats_converted')
     output_dir = Path('test_format_compatibility_outputs')
     output_dir.mkdir(exist_ok=True)
     

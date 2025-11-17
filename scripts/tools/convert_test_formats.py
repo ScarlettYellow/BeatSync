@@ -79,9 +79,9 @@ def convert_to_format(input_path: str, output_path: str, format_type: str) -> bo
 
 def main():
     parser = argparse.ArgumentParser(description="将测试样本转换为不同格式")
-    parser.add_argument('--input-dir', type=str, default='test_multiple_videoformats',
+    parser.add_argument('--input-dir', type=str, default='test_data/test_multiple_videoformats',
                        help='输入目录（包含样本子目录）')
-    parser.add_argument('--output-dir', type=str, default='test_multiple_videoformats_converted',
+    parser.add_argument('--output-dir', type=str, default='test_data/test_multiple_videoformats_converted',
                        help='输出目录')
     parser.add_argument('--formats', type=str, nargs='+', 
                        default=['mov', 'h265', 'compressed', 'avi', 'mkv'],

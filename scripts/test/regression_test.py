@@ -15,7 +15,7 @@ from pathlib import Path
 from datetime import datetime
 from typing import Dict, List
 
-def get_all_samples(input_dir: str = "input_allcases") -> List[str]:
+def get_all_samples(input_dir: str = "test_data/input_allcases") -> List[str]:
     """获取所有可用样本"""
     samples = []
     input_path = Path(input_dir)
@@ -192,7 +192,7 @@ def main():
     for i, sample_name in enumerate(selected_samples, 1):
         print(f"\n[{i}/8] 处理样本: {sample_name}")
         
-        sample_dir = Path("input_allcases") / sample_name
+        sample_dir = Path("test_data/input_allcases") / sample_name
         dance_path, bgm_path = find_video_files(sample_dir)
         
         if not dance_path or not bgm_path:

@@ -11,7 +11,7 @@ from datetime import datetime
 
 def process_all_samples_parallel():
     """批量并行处理所有测试样本"""
-    input_dir = "input_allcases_lowp"
+    input_dir = "test_data/input_allcases_lowp"
     output_dir = "parallel_processing_outputs"
     
     # 确保输出目录存在
@@ -118,7 +118,7 @@ def process_specific_samples():
         "nobody_shorterbegin"
     ]
     
-    input_dir = "input_allcases_lowp"
+    input_dir = "test_data/input_allcases_lowp"
     output_dir = "parallel_processing_specific"
     
     # 确保输出目录存在

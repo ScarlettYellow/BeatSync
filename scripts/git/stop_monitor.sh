@@ -1,7 +1,10 @@
 #!/bin/bash
 # 停止文件监控
 
-PID_FILE=".git_monitor.pid"
+# 获取项目根目录（脚本在scripts/git/目录下）
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+PID_FILE="$PROJECT_ROOT/.git_monitor.pid"
 
 if [ ! -f "$PID_FILE" ]; then
     echo "ℹ️  监控未运行"

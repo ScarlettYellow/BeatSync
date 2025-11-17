@@ -5,9 +5,14 @@
 # 配置
 MONITOR_INTERVAL=120  # 检查间隔（秒），2分钟检查一次
 STABLE_WAIT=180  # 文件稳定等待时间（秒），检测到改动后等待3分钟确保文件已保存完成
-IMPORTANT_FILES="beatsync_fine_cut_modular.py beatsync_badcase_fix_trim_v2.py beatsync_parallel_processor.py beatsync_utils.py README.md PROJECT_STATUS.md EXCEPTION_HANDLING_GUIDE.md"
-PID_FILE=".git_monitor.pid"
-LOG_FILE=".git_monitor.log"
+# 获取项目根目录（脚本在scripts/git/目录下）
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
+# 重要文件路径（相对于项目根目录）
+IMPORTANT_FILES="$PROJECT_ROOT/beatsync_fine_cut_modular.py $PROJECT_ROOT/beatsync_badcase_fix_trim_v2.py $PROJECT_ROOT/beatsync_parallel_processor.py $PROJECT_ROOT/beatsync_utils.py $PROJECT_ROOT/README.md $PROJECT_ROOT/docs/PROJECT_STATUS.md $PROJECT_ROOT/docs/EXCEPTION_HANDLING_GUIDE.md"
+PID_FILE="$PROJECT_ROOT/.git_monitor.pid"
+LOG_FILE="$PROJECT_ROOT/.git_monitor.log"
 
 # 检查是否已在运行
 if [ -f "$PID_FILE" ]; then
@@ -58,7 +63,7 @@ show_notification() {
     fi
     echo ""
     echo "💡 提示：可以运行以下命令提交："
-    echo "   ./ac"
+    echo "   cd $PROJECT_ROOT && ./ac"
     echo ""
     echo "========================================"
     echo ""
