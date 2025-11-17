@@ -202,6 +202,16 @@ async def process_video(
         else:
             # 记录失败原因
             print(f"ERROR: 并行处理器返回失败，task_id: {task_id}")
+            print(f"ERROR: 输出目录: {output_dir}")
+            print(f"ERROR: 输出目录内容: {list(output_dir.glob('*'))}")
+            
+            # 检查是否有对比报告文件，可能包含错误信息
+            report_file = output_dir / f"{task_id}_comparison_report.txt"
+            if report_file.exists():
+                with open(report_file, 'r', encoding='utf-8') as f:
+                    report_content = f.read()
+                    print(f"ERROR: 报告内容（前500字符）: {report_content[:500]}")
+            
             return {
                 "task_id": task_id,
                 "status": "failed",
