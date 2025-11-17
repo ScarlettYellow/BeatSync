@@ -121,6 +121,12 @@ async def process_video(
     """
     处理视频（同步处理）
     
+    注意：处理时间可能较长（几分钟到十几分钟），
+    如果浏览器或代理有超时限制，可能需要改为异步处理。
+    """
+    """
+    处理视频（同步处理）
+    
     参数:
         dance_file_id: 原始视频文件ID
         bgm_file_id: 音源视频文件ID
@@ -150,6 +156,13 @@ async def process_video(
     
     # 调用并行处理器
     try:
+        import sys
+        import traceback
+        
+        # 确保可以导入并行处理器（添加项目根目录到路径）
+        if str(project_root) not in sys.path:
+            sys.path.insert(0, str(project_root))
+        
         from beatsync_parallel_processor import process_beat_sync_parallel
         
         # 使用并行处理器处理
@@ -170,10 +183,15 @@ async def process_video(
             elif v2_output.exists():
                 output_file = v2_output
             else:
-                raise HTTPException(
-                    status_code=500,
-                    detail="处理完成但未找到输出文件"
-                )
+                # 记录详细错误
+                error_msg = f"处理完成但未找到输出文件。输出目录: {output_dir}，文件列表: {list(output_dir.glob('*'))}"
+                print(f"ERROR: {error_msg}")
+                return {
+                    "task_id": task_id,
+                    "status": "failed",
+                    "error": "处理失败",
+                    "message": "处理完成但未找到输出文件"
+                }
             
             return {
                 "task_id": task_id,
@@ -182,6 +200,8 @@ async def process_video(
                 "message": "处理成功"
             }
         else:
+            # 记录失败原因
+            print(f"ERROR: 并行处理器返回失败，task_id: {task_id}")
             return {
                 "task_id": task_id,
                 "status": "failed",
@@ -189,12 +209,28 @@ async def process_video(
                 "message": "处理失败"
             }
     
-    except Exception as e:
+    except ImportError as e:
+        error_msg = f"导入并行处理器失败: {str(e)}"
+        print(f"ERROR: {error_msg}")
+        print(f"ERROR: sys.path: {sys.path}")
+        print(f"ERROR: project_root: {project_root}")
         return {
             "task_id": task_id,
             "status": "failed",
             "error": "处理失败",
-            "message": f"处理异常: {str(e)}"
+            "message": f"系统错误: {error_msg}"
+        }
+    except Exception as e:
+        # 记录详细错误信息
+        error_trace = traceback.format_exc()
+        error_msg = f"处理异常: {str(e)}"
+        print(f"ERROR: {error_msg}")
+        print(f"ERROR: {error_trace}")
+        return {
+            "task_id": task_id,
+            "status": "failed",
+            "error": "处理失败",
+            "message": error_msg
         }
 
 
