@@ -220,13 +220,34 @@ async function processVideo() {
     try {
         processBtn.disabled = true;
         processBtn.textContent = '处理中...';
-        updateStatus('正在处理，请稍候...', 'processing');
+        updateStatus('正在处理，请稍候...（这可能需要几分钟）', 'processing');
         downloadSection.style.display = 'none';
         
-        const response = await fetch(`${API_BASE_URL}/api/process`, {
-            method: 'POST',
-            body: formData
-        });
+        // 创建AbortController用于超时控制
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => {
+            controller.abort();
+        }, 300000); // 5分钟超时（视频处理可能需要较长时间）
+        
+        let response;
+        try {
+            response = await fetch(`${API_BASE_URL}/api/process`, {
+                method: 'POST',
+                body: formData,
+                signal: controller.signal
+            });
+            clearTimeout(timeoutId);
+        } catch (error) {
+            clearTimeout(timeoutId);
+            if (error.name === 'AbortError') {
+                throw new Error('处理超时：视频处理时间过长，请稍后重试或使用较小的视频文件');
+            }
+            // 如果是连接错误，提供更友好的提示
+            if (error.message.includes('Failed to fetch') || error.message.includes('ERR_CONNECTION_CLOSED')) {
+                throw new Error('连接中断：可能是Render服务休眠或超时。请稍后重试，或使用较小的测试视频。');
+            }
+            throw error;
+        }
         
         if (!response.ok) {
             let errorDetail = '处理失败';
@@ -257,6 +278,8 @@ async function processVideo() {
         const errorMsg = error.message || '处理失败';
         if (errorMsg.includes('超时') || errorMsg.includes('timeout') || errorMsg.includes('aborted')) {
             updateStatus(`处理超时: 视频处理时间过长。Render免费层有超时限制，建议使用较小的测试视频或升级到付费计划。`, 'error');
+        } else if (errorMsg.includes('连接中断') || errorMsg.includes('ERR_CONNECTION_CLOSED') || errorMsg.includes('Failed to fetch')) {
+            updateStatus(`连接中断: Render服务可能已休眠或超时。请等待几秒后重试，或使用较小的测试视频。`, 'error');
         } else {
             updateStatus(`处理失败: ${errorMsg}`, 'error');
         }
