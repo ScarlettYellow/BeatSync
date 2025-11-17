@@ -20,10 +20,41 @@ const downloadBtn = document.getElementById('download-btn');
 
 // 初始化
 document.addEventListener('DOMContentLoaded', () => {
+    // 重置所有状态（确保刷新后清空之前的记录）
+    resetState();
     setupFileInputs();
     setupDragAndDrop();
     updateProcessButton();
 });
+
+// 重置状态
+function resetState() {
+    state = {
+        danceFileId: null,
+        bgmFileId: null,
+        taskId: null,
+        danceFile: null,
+        bgmFile: null
+    };
+    
+    // 清空文件输入
+    danceFileInput.value = '';
+    bgmFileInput.value = '';
+    
+    // 隐藏文件信息
+    document.getElementById('dance-info').style.display = 'none';
+    document.getElementById('bgm-info').style.display = 'none';
+    
+    // 重置状态显示
+    updateStatus('等待上传文件...', '');
+    
+    // 隐藏下载按钮
+    downloadSection.style.display = 'none';
+    
+    // 重置处理按钮
+    processBtn.disabled = true;
+    processBtn.textContent = '开始处理';
+}
 
 // 设置文件输入
 function setupFileInputs() {
