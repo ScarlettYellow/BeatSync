@@ -229,8 +229,14 @@ async function processVideo() {
         });
         
         if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.detail || '处理失败');
+            let errorDetail = '处理失败';
+            try {
+                const error = await response.json();
+                errorDetail = error.detail || error.message || error.error || '处理失败';
+            } catch (e) {
+                errorDetail = `HTTP ${response.status}: ${response.statusText}`;
+            }
+            throw new Error(errorDetail);
         }
         
         const result = await response.json();
@@ -242,11 +248,14 @@ async function processVideo() {
             updateStatus('处理完成！', 'success');
             downloadSection.style.display = 'block';
         } else {
-            updateStatus('处理失败', 'error');
+            const errorMsg = result.message || result.error || '处理失败';
+            updateStatus(`处理失败: ${errorMsg}`, 'error');
+            console.error('Process failed:', result);
         }
         
     } catch (error) {
-        updateStatus('处理失败', 'error');
+        const errorMsg = error.message || '处理失败';
+        updateStatus(`处理失败: ${errorMsg}`, 'error');
         console.error('Process error:', error);
     } finally {
         processBtn.disabled = false;
