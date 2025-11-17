@@ -90,8 +90,18 @@ def extract_alignment_info(output_text, program_name):
             info['confidence'] = match.group(1)
             break
     
-    # 检查是否成功
-    success_indicators = ['处理成功', 'success', '完成', '模块解耦精剪模式处理成功']
+    # 检查是否成功 - 扩展成功标志列表
+    success_indicators = [
+        '处理成功', 
+        'success', 
+        '完成', 
+        '模块解耦精剪模式处理成功',
+        'Badcase修复（裁剪版本）成功',  # V2版本成功标志
+        'Badcase修复.*成功',  # V2版本成功标志（正则）
+        '精剪视频已生成',
+        '最终输出:',
+        '最终裁剪视频创建成功'
+    ]
     info['success'] = any(indicator in output_text for indicator in success_indicators)
     
     return info
@@ -117,6 +127,11 @@ def process_with_modular(dance_video: str, bgm_video: str, output_video: str) ->
         info = extract_alignment_info(result.stdout, "modular版本")
         info['return_code'] = result.returncode
         info['stderr'] = result.stderr
+        
+        # 增强成功判断：如果返回码为0且输出文件存在，则认为成功
+        if result.returncode == 0 and os.path.exists(output_video) and os.path.getsize(output_video) > 0:
+            info['success'] = True
+        
         return info
         
     except subprocess.TimeoutExpired:
@@ -145,6 +160,11 @@ def process_with_v2(dance_video: str, bgm_video: str, output_video: str) -> dict
         info = extract_alignment_info(result.stdout, "V2版本")
         info['return_code'] = result.returncode
         info['stderr'] = result.stderr
+        
+        # 增强成功判断：如果返回码为0且输出文件存在，则认为成功
+        if result.returncode == 0 and os.path.exists(output_video) and os.path.getsize(output_video) > 0:
+            info['success'] = True
+        
         return info
         
     except subprocess.TimeoutExpired:
