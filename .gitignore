@@ -84,3 +84,7 @@ project_docs/
 # Numba缓存
 .numba_cache/
 
+# Git监控临时文件
+.git_monitor.pid
+.git_monitor.log
+
