@@ -261,9 +261,10 @@ async function processVideo() {
 
 // 轮询任务状态
 async function pollTaskStatus(taskId) {
-    const maxAttempts = 120; // 最多轮询120次（10分钟，每5秒一次）
+    const maxAttempts = 240; // 最多轮询240次（20分钟，每5秒一次）
     let attempts = 0;
     let pollInterval = null;
+    let lastStatusTime = Date.now(); // 记录上次状态更新时间
     
     const poll = async () => {
         attempts++;
@@ -305,7 +306,15 @@ async function pollTaskStatus(taskId) {
             } else if (result.status === 'processing' || result.status === 'pending') {
                 // 继续处理中
                 const elapsedSeconds = attempts * 5;
-                updateStatus(`正在处理... (已等待${elapsedSeconds}秒)`, 'processing');
+                const elapsedMinutes = Math.floor(elapsedSeconds / 60);
+                const remainingSeconds = elapsedSeconds % 60;
+                
+                // 检查是否长时间没有进展（超过5分钟）
+                if (elapsedSeconds > 300) {
+                    updateStatus(`正在处理... (已等待${elapsedMinutes}分${remainingSeconds}秒，Render免费层可能较慢，请耐心等待)`, 'processing');
+                } else {
+                    updateStatus(`正在处理... (已等待${elapsedSeconds}秒)`, 'processing');
+                }
             }
         } catch (error) {
             console.error('Poll error:', error);
@@ -315,7 +324,7 @@ async function pollTaskStatus(taskId) {
         // 超时检查
         if (attempts >= maxAttempts) {
             clearInterval(pollInterval);
-            updateStatus('处理超时：处理时间过长，请稍后重试', 'error');
+            updateStatus('处理超时：处理时间超过20分钟。Render免费层资源有限，建议使用较小的测试视频或稍后重试。', 'error');
             processBtn.disabled = false;
             processBtn.textContent = '开始处理';
         }
