@@ -203,6 +203,7 @@ def process_video_background(task_id: str, dance_path: Path, bgm_path: Path, out
                 "message": "正在处理，请稍候...",
                 "started_at": datetime.now().isoformat()
             }
+        save_task_status()  # 保存到文件
         
         # 确保可以导入并行处理器
         if str(project_root) not in sys.path:
