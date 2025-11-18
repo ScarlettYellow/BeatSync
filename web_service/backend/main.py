@@ -122,8 +122,12 @@ cleanup_old_tasks()
 
 
 @app.get("/")
+@app.head("/")
 async def root():
-    """根路径，返回API信息"""
+    """
+    根路径，返回API信息
+    支持GET和HEAD请求（Render内部健康检查使用HEAD请求）
+    """
     return {
         "name": "BeatSync API",
         "version": "1.0.0",
