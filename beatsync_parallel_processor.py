@@ -196,7 +196,7 @@ def process_with_v2(dance_video: str, bgm_video: str, output_video: str) -> dict
     except Exception as e:
         return {'program': 'V2版本', 'success': False, 'error': str(e)}
 
-def process_beat_sync_parallel(dance_video: str, bgm_video: str, output_dir: str, sample_name: str, fast_mode: bool = False) -> bool:
+def process_beat_sync_parallel(dance_video: str, bgm_video: str, output_dir: str, sample_name: str) -> bool:
     """并行处理主函数"""
     print("=" * 60)
     print("BeatSync 并行处理器")

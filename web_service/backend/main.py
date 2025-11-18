@@ -211,15 +211,12 @@ def process_video_background(task_id: str, dance_path: Path, bgm_path: Path, out
         
         from beatsync_parallel_processor import process_beat_sync_parallel
         
-        # 使用并行处理器处理（快速模式：只运行V2版本，更快）
-        # 可以通过环境变量或参数控制，暂时默认使用快速模式
-        fast_mode = os.getenv('BEATSYNC_FAST_MODE', 'true').lower() == 'true'
+        # 使用并行处理器处理（并行运行两个版本）
         success = process_beat_sync_parallel(
             str(dance_path),
             str(bgm_path),
             str(output_dir),
-            task_id,
-            fast_mode=fast_mode
+            task_id
         )
         
         # 检查输出文件（即使success=False，也可能有部分成功）
