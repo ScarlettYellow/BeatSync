@@ -358,6 +358,54 @@ function updateStatus(message, type = '') {
     }
 }
 
+// 更新下载按钮状态
+function updateDownloadButtons(result) {
+    const modularStatus = result.modular_status || 'processing';
+    const v2Status = result.v2_status || 'processing';
+    
+    // 更新modular按钮
+    if (modularStatus === 'success' && result.modular_output) {
+        downloadModularBtn.disabled = false;
+        downloadModularBtn.querySelector('.btn-status').textContent = '✅';
+        downloadModularBtn.querySelector('.btn-text').textContent = '下载Modular版本';
+        downloadModularBtn.onclick = () => {
+            const url = `${API_BASE_URL}/api/download/${result.task_id}?version=modular`;
+            downloadFile(url, 'modular.mp4');
+        };
+    } else if (modularStatus === 'failed') {
+        downloadModularBtn.disabled = true;
+        downloadModularBtn.querySelector('.btn-status').textContent = '❌';
+        downloadModularBtn.querySelector('.btn-text').textContent = 'Modular版本处理失败';
+        downloadModularBtn.onclick = null;
+    } else {
+        downloadModularBtn.disabled = true;
+        downloadModularBtn.querySelector('.btn-status').textContent = '⏳';
+        downloadModularBtn.querySelector('.btn-text').textContent = 'Modular版本处理中...';
+        downloadModularBtn.onclick = null;
+    }
+    
+    // 更新v2按钮
+    if (v2Status === 'success' && result.v2_output) {
+        downloadV2Btn.disabled = false;
+        downloadV2Btn.querySelector('.btn-status').textContent = '✅';
+        downloadV2Btn.querySelector('.btn-text').textContent = '下载V2版本';
+        downloadV2Btn.onclick = () => {
+            const url = `${API_BASE_URL}/api/download/${result.task_id}?version=v2`;
+            downloadFile(url, 'v2.mp4');
+        };
+    } else if (v2Status === 'failed') {
+        downloadV2Btn.disabled = true;
+        downloadV2Btn.querySelector('.btn-status').textContent = '❌';
+        downloadV2Btn.querySelector('.btn-text').textContent = 'V2版本处理失败';
+        downloadV2Btn.onclick = null;
+    } else {
+        downloadV2Btn.disabled = true;
+        downloadV2Btn.querySelector('.btn-status').textContent = '⏳';
+        downloadV2Btn.querySelector('.btn-text').textContent = 'V2版本处理中...';
+        downloadV2Btn.onclick = null;
+    }
+}
+
 // 下载单个文件
 async function downloadFile(url, filename) {
     try {
