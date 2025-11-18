@@ -66,6 +66,16 @@ function resetState() {
     // 隐藏下载按钮
     downloadSection.style.display = 'none';
     
+    // 重置下载按钮状态
+    downloadModularBtn.disabled = true;
+    downloadModularBtn.querySelector('.btn-status').textContent = '⏳';
+    downloadModularBtn.querySelector('.btn-text').textContent = '下载Modular版本';
+    downloadModularBtn.onclick = null;
+    downloadV2Btn.disabled = true;
+    downloadV2Btn.querySelector('.btn-status').textContent = '⏳';
+    downloadV2Btn.querySelector('.btn-text').textContent = '下载V2版本';
+    downloadV2Btn.onclick = null;
+    
     // 重置处理按钮
     processBtn.disabled = true;
     processBtn.textContent = '开始处理';
