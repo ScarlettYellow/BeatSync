@@ -134,7 +134,8 @@ def process_with_modular(dance_video: str, bgm_video: str, output_video: str) ->
         ]
         
         # 设置工作目录为项目根目录
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=300, cwd=str(project_root))
+        # 增加超时时间到600秒（10分钟），适应Render免费层的性能限制
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=600, cwd=str(project_root))
         info = extract_alignment_info(result.stdout, "modular版本")
         info['return_code'] = result.returncode
         info['stderr'] = result.stderr
@@ -177,7 +178,8 @@ def process_with_v2(dance_video: str, bgm_video: str, output_video: str) -> dict
         ]
         
         # 设置工作目录为项目根目录
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=300, cwd=str(project_root))
+        # 增加超时时间到600秒（10分钟），适应Render免费层的性能限制
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=600, cwd=str(project_root))
         info = extract_alignment_info(result.stdout, "V2版本")
         info['return_code'] = result.returncode
         info['stderr'] = result.stderr
@@ -224,13 +226,56 @@ def process_beat_sync_parallel(dance_video: str, bgm_video: str, output_dir: str
     # 并行处理
     print("\n步骤1: 并行处理...")
     
-    # 使用modular版本处理
-    modular_info = process_with_modular(dance_video, bgm_video, modular_output)
-    modular_info['output_file'] = modular_output
+    # 使用线程真正并行处理两个版本
+    modular_result = {}
+    v2_result = {}
+    modular_done = threading.Event()
+    v2_done = threading.Event()
     
-    # 使用V2版本处理
-    v2_info = process_with_v2(dance_video, bgm_video, v2_output)
-    v2_info['output_file'] = v2_output
+    def modular_thread():
+        """Modular版本处理线程"""
+        try:
+            result = process_with_modular(dance_video, bgm_video, modular_output)
+            result['output_file'] = modular_output
+            modular_result.update(result)
+        except Exception as e:
+            modular_result.update({
+                'program': 'modular版本',
+                'success': False,
+                'error': str(e)
+            })
+        finally:
+            modular_done.set()
+    
+    def v2_thread():
+        """V2版本处理线程"""
+        try:
+            result = process_with_v2(dance_video, bgm_video, v2_output)
+            result['output_file'] = v2_output
+            v2_result.update(result)
+        except Exception as e:
+            v2_result.update({
+                'program': 'V2版本',
+                'success': False,
+                'error': str(e)
+            })
+        finally:
+            v2_done.set()
+    
+    # 启动两个线程并行处理
+    t1 = threading.Thread(target=modular_thread, daemon=False)
+    t2 = threading.Thread(target=v2_thread, daemon=False)
+    
+    print("  启动modular版本和V2版本并行处理...")
+    t1.start()
+    t2.start()
+    
+    # 等待两个线程完成
+    t1.join()
+    t2.join()
+    
+    modular_info = modular_result
+    v2_info = v2_result
     
     # 显示结果
     print(f"\n步骤2: 处理结果")
