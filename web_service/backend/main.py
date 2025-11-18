@@ -24,6 +24,14 @@ from fastapi.middleware.cors import CORSMiddleware
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
+# 导入性能日志记录器
+try:
+    from performance_logger import create_logger
+    PERFORMANCE_LOGGING_ENABLED = True
+except ImportError:
+    PERFORMANCE_LOGGING_ENABLED = False
+    print("WARNING: 性能日志记录器未找到，性能日志功能已禁用")
+
 app = FastAPI(title="BeatSync API", version="1.0.0")
 
 # 配置CORS（允许前端跨域访问）
@@ -197,6 +205,16 @@ async def upload_video(
 
 def process_video_background(task_id: str, dance_path: Path, bgm_path: Path, output_dir: Path):
     """后台处理视频的函数"""
+    # 创建性能日志记录器
+    perf_logger = None
+    if PERFORMANCE_LOGGING_ENABLED:
+        perf_logger = create_logger(task_id, "视频处理")
+        perf_logger.start()
+        perf_logger.log_file_operation("读取输入文件", str(dance_path), 
+                                       dance_path.stat().st_size if dance_path.exists() else None)
+        perf_logger.log_file_operation("读取输入文件", str(bgm_path),
+                                       bgm_path.stat().st_size if bgm_path.exists() else None)
+    
     try:
         import traceback
         import time
@@ -212,9 +230,15 @@ def process_video_background(task_id: str, dance_path: Path, bgm_path: Path, out
             }
         save_task_status()  # 保存到文件
         
+        if perf_logger:
+            perf_logger.log_step("初始化任务状态")
+        
         # 确保可以导入并行处理器
         if str(project_root) not in sys.path:
             sys.path.insert(0, str(project_root))
+        
+        if perf_logger:
+            perf_logger.log_step("导入并行处理器模块")
         
         from beatsync_parallel_processor import process_beat_sync_parallel
         
@@ -224,8 +248,12 @@ def process_video_background(task_id: str, dance_path: Path, bgm_path: Path, out
         processing_done = threading.Event()
         processing_success = [False]  # 使用列表以便在线程间共享
         
+        processing_start_time = time.time()
+        
         def run_processing():
             try:
+                if perf_logger:
+                    perf_logger.log_step("启动并行处理线程")
                 success = process_beat_sync_parallel(
                     str(dance_path),
                     str(bgm_path),
@@ -233,11 +261,21 @@ def process_video_background(task_id: str, dance_path: Path, bgm_path: Path, out
                     task_id
                 )
                 processing_success[0] = success
+                if perf_logger:
+                    processing_duration = time.time() - processing_start_time
+                    perf_logger.log_step("并行处理完成", processing_duration)
+            except Exception as e:
+                if perf_logger:
+                    perf_logger.log_error(f"并行处理异常: {str(e)}", "EXCEPTION")
+                raise
             finally:
                 processing_done.set()
         
         processing_thread = threading.Thread(target=run_processing, daemon=False)
         processing_thread.start()
+        
+        if perf_logger:
+            perf_logger.log_step("启动处理线程")
         
         # 监控处理进度（每10秒检查一次输出文件）
         modular_output = output_dir / f"{task_id}_modular.mp4"
@@ -291,9 +329,20 @@ def process_video_background(task_id: str, dance_path: Path, bgm_path: Path, out
         # 等待处理线程完成
         processing_thread.join()
         
+        if perf_logger:
+            perf_logger.log_step("等待处理线程完成")
+        
         # 最终检查输出文件
         modular_exists = modular_output.exists() and modular_output.stat().st_size > 0
         v2_exists = v2_output.exists() and v2_output.stat().st_size > 0
+        
+        if perf_logger:
+            if modular_exists:
+                perf_logger.log_file_operation("检查输出文件", str(modular_output),
+                                             modular_output.stat().st_size)
+            if v2_exists:
+                perf_logger.log_file_operation("检查输出文件", str(v2_output),
+                                             v2_output.stat().st_size)
         
         # 更新最终状态
         if modular_exists or v2_exists:
@@ -318,9 +367,13 @@ def process_video_background(task_id: str, dance_path: Path, bgm_path: Path, out
             with task_lock:
                 task_status[task_id].update(result)
             save_task_status()  # 保存到文件
+            
+            if perf_logger:
+                perf_logger.finish(success=True)
         else:
             # 记录失败原因
-            print(f"ERROR: 并行处理器返回失败，task_id: {task_id}")
+            error_msg = f"并行处理器返回失败，task_id: {task_id}"
+            print(f"ERROR: {error_msg}")
             print(f"ERROR: 输出目录: {output_dir}")
             print(f"ERROR: 输出目录内容: {list(output_dir.glob('*'))}")
             
@@ -334,12 +387,18 @@ def process_video_background(task_id: str, dance_path: Path, bgm_path: Path, out
                     "v2_status": "failed"
                 }
             save_task_status()  # 保存到文件
+            
+            if perf_logger:
+                perf_logger.finish(success=False, error_msg=error_msg)
     
     except ImportError as e:
         error_msg = f"导入并行处理器失败: {str(e)}"
         print(f"ERROR: {error_msg}")
         print(f"ERROR: sys.path: {sys.path}")
         print(f"ERROR: project_root: {project_root}")
+        if perf_logger:
+            perf_logger.log_error(error_msg, "IMPORT_ERROR")
+            perf_logger.finish(success=False, error_msg=error_msg)
         with task_lock:
             task_status[task_id] = {
                 "status": "failed",
@@ -353,6 +412,9 @@ def process_video_background(task_id: str, dance_path: Path, bgm_path: Path, out
         error_msg = f"处理异常: {str(e)}"
         print(f"ERROR: {error_msg}")
         print(f"ERROR: {error_trace}")
+        if perf_logger:
+            perf_logger.log_error(error_msg, "EXCEPTION")
+            perf_logger.finish(success=False, error_msg=error_msg)
         with task_lock:
             task_status[task_id] = {
                 "status": "failed",

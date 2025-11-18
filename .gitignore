@@ -71,6 +71,7 @@ Thumbs.db
 # 日志文件
 *.log
 logs/
+outputs/logs/
 
 # 临时脚本
 *.sh.bak
