@@ -473,5 +473,5 @@ async function downloadResult() {
 
 // 绑定事件
 processBtn.addEventListener('click', processVideo);
-downloadBtn.addEventListener('click', downloadResult);
+// 下载按钮的事件在updateDownloadButtons中动态绑定
 
