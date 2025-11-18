@@ -445,8 +445,12 @@ async def download_result(task_id: str, version: Optional[str] = None):
 
 
 @app.get("/api/health")
+@app.head("/api/health")
 async def health_check():
-    """健康检查"""
+    """
+    健康检查接口
+    支持GET和HEAD请求（UptimeRobot等监控服务通常使用HEAD请求）
+    """
     return {
         "status": "healthy",
         "timestamp": datetime.now().isoformat()
