@@ -196,7 +196,7 @@ def process_with_v2(dance_video: str, bgm_video: str, output_video: str) -> dict
     except Exception as e:
         return {'program': 'V2版本', 'success': False, 'error': str(e)}
 
-def process_beat_sync_parallel(dance_video: str, bgm_video: str, output_dir: str, sample_name: str) -> bool:
+def process_beat_sync_parallel(dance_video: str, bgm_video: str, output_dir: str, sample_name: str, fast_mode: bool = False) -> bool:
     """并行处理主函数"""
     print("=" * 60)
     print("BeatSync 并行处理器")
@@ -228,40 +228,46 @@ def process_beat_sync_parallel(dance_video: str, bgm_video: str, output_dir: str
     print("\n步骤1: 并行处理...")
     
     # 使用线程真正并行处理两个版本
+    # 使用线程安全的字典存储结果
     modular_result = {}
     v2_result = {}
-    modular_done = threading.Event()
-    v2_done = threading.Event()
+    result_lock = threading.Lock()
     
     def modular_thread():
         """Modular版本处理线程"""
         try:
             result = process_with_modular(dance_video, bgm_video, modular_output)
             result['output_file'] = modular_output
-            modular_result.update(result)
+            with result_lock:
+                modular_result.update(result)
+            print(f"  ✅ modular版本处理完成: {'成功' if result.get('success') else '失败'}")
         except Exception as e:
-            modular_result.update({
+            error_info = {
                 'program': 'modular版本',
                 'success': False,
                 'error': str(e)
-            })
-        finally:
-            modular_done.set()
+            }
+            with result_lock:
+                modular_result.update(error_info)
+            print(f"  ❌ modular版本处理异常: {str(e)}")
     
     def v2_thread():
         """V2版本处理线程"""
         try:
             result = process_with_v2(dance_video, bgm_video, v2_output)
             result['output_file'] = v2_output
-            v2_result.update(result)
+            with result_lock:
+                v2_result.update(result)
+            print(f"  ✅ V2版本处理完成: {'成功' if result.get('success') else '失败'}")
         except Exception as e:
-            v2_result.update({
+            error_info = {
                 'program': 'V2版本',
                 'success': False,
                 'error': str(e)
-            })
-        finally:
-            v2_done.set()
+            }
+            with result_lock:
+                v2_result.update(error_info)
+            print(f"  ❌ V2版本处理异常: {str(e)}")
     
     # 启动两个线程并行处理
     t1 = threading.Thread(target=modular_thread, daemon=False)
@@ -271,12 +277,14 @@ def process_beat_sync_parallel(dance_video: str, bgm_video: str, output_dir: str
     t1.start()
     t2.start()
     
-    # 等待两个线程完成
+    # 等待两个线程完成（即使一个失败，另一个也会继续）
     t1.join()
     t2.join()
     
-    modular_info = modular_result
-    v2_info = v2_result
+    # 获取结果（线程安全）
+    with result_lock:
+        modular_info = modular_result.copy()
+        v2_info = v2_result.copy()
     
     # 显示结果
     print(f"\n步骤2: 处理结果")

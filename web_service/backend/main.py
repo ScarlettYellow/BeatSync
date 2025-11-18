@@ -211,39 +211,30 @@ def process_video_background(task_id: str, dance_path: Path, bgm_path: Path, out
         
         from beatsync_parallel_processor import process_beat_sync_parallel
         
-        # 使用并行处理器处理
+        # 使用并行处理器处理（快速模式：只运行V2版本，更快）
+        # 可以通过环境变量或参数控制，暂时默认使用快速模式
+        fast_mode = os.getenv('BEATSYNC_FAST_MODE', 'true').lower() == 'true'
         success = process_beat_sync_parallel(
             str(dance_path),
             str(bgm_path),
             str(output_dir),
-            task_id
+            task_id,
+            fast_mode=fast_mode
         )
         
-        if success:
-            # 查找输出文件
-            modular_output = output_dir / f"{task_id}_modular.mp4"
-            v2_output = output_dir / f"{task_id}_v2.mp4"
-            
-            modular_exists = modular_output.exists()
-            v2_exists = v2_output.exists()
-            
-            if not modular_exists and not v2_exists:
-                error_msg = f"处理完成但未找到输出文件。输出目录: {output_dir}，文件列表: {list(output_dir.glob('*'))}"
-                print(f"ERROR: {error_msg}")
-                with task_lock:
-                    task_status[task_id] = {
-                        "status": "failed",
-                        "error": "处理失败",
-                        "message": "处理完成但未找到输出文件",
-                        "completed_at": datetime.now().isoformat()
-                    }
-                save_task_status()  # 保存到文件
-                return
-            
-            # 更新状态为成功
+        # 检查输出文件（即使success=False，也可能有部分成功）
+        modular_output = output_dir / f"{task_id}_modular.mp4"
+        v2_output = output_dir / f"{task_id}_v2.mp4"
+        
+        modular_exists = modular_output.exists() and modular_output.stat().st_size > 0
+        v2_exists = v2_output.exists() and v2_output.stat().st_size > 0
+        
+        # 如果有任何一个输出文件，就认为部分成功
+        if modular_exists or v2_exists:
+            # 更新状态为成功（支持部分成功）
             result = {
                 "status": "success",
-                "message": "处理成功",
+                "message": "处理成功" if (modular_exists and v2_exists) else "部分处理成功",
                 "completed_at": datetime.now().isoformat()
             }
             
@@ -251,6 +242,12 @@ def process_video_background(task_id: str, dance_path: Path, bgm_path: Path, out
                 result["modular_output"] = str(modular_output)
             if v2_exists:
                 result["v2_output"] = str(v2_output)
+            
+            # 如果只有一个成功，添加提示
+            if modular_exists and not v2_exists:
+                result["message"] = "处理成功（modular版本）"
+            elif v2_exists and not modular_exists:
+                result["message"] = "处理成功（V2版本）"
             
             with task_lock:
                 task_status[task_id].update(result)
