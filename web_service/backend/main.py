@@ -195,13 +195,16 @@ def process_video_background(task_id: str, dance_path: Path, bgm_path: Path, out
     """后台处理视频的函数"""
     try:
         import traceback
+        import time
         
         # 更新状态为处理中
         with task_lock:
             task_status[task_id] = {
                 "status": "processing",
                 "message": "正在处理，请稍候...",
-                "started_at": datetime.now().isoformat()
+                "started_at": datetime.now().isoformat(),
+                "modular_status": "processing",
+                "v2_status": "processing"
             }
         save_task_status()  # 保存到文件
         
@@ -211,40 +214,102 @@ def process_video_background(task_id: str, dance_path: Path, bgm_path: Path, out
         
         from beatsync_parallel_processor import process_beat_sync_parallel
         
-        # 使用并行处理器处理（并行运行两个版本）
-        success = process_beat_sync_parallel(
-            str(dance_path),
-            str(bgm_path),
-            str(output_dir),
-            task_id
-        )
+        # 启动并行处理（在单独线程中运行，以便监控进度）
+        import threading
         
-        # 检查输出文件（即使success=False，也可能有部分成功）
+        processing_done = threading.Event()
+        processing_success = [False]  # 使用列表以便在线程间共享
+        
+        def run_processing():
+            try:
+                success = process_beat_sync_parallel(
+                    str(dance_path),
+                    str(bgm_path),
+                    str(output_dir),
+                    task_id
+                )
+                processing_success[0] = success
+            finally:
+                processing_done.set()
+        
+        processing_thread = threading.Thread(target=run_processing, daemon=False)
+        processing_thread.start()
+        
+        # 监控处理进度（每10秒检查一次输出文件）
         modular_output = output_dir / f"{task_id}_modular.mp4"
         v2_output = output_dir / f"{task_id}_v2.mp4"
         
+        check_interval = 10  # 10秒检查一次
+        last_check_time = time.time()
+        
+        while not processing_done.is_set():
+            current_time = time.time()
+            if current_time - last_check_time >= check_interval:
+                # 检查输出文件
+                modular_exists = modular_output.exists() and modular_output.stat().st_size > 0
+                v2_exists = v2_output.exists() and v2_output.stat().st_size > 0
+                
+                # 更新状态
+                with task_lock:
+                    status = task_status.get(task_id, {})
+                    
+                    # 更新modular状态
+                    if modular_exists and status.get("modular_status") != "success":
+                        status["modular_status"] = "success"
+                        status["modular_output"] = str(modular_output)
+                    
+                    # 更新v2状态
+                    if v2_exists and status.get("v2_status") != "success":
+                        status["v2_status"] = "success"
+                        status["v2_output"] = str(v2_output)
+                    
+                    # 更新消息
+                    modular_done = status.get("modular_status") == "success"
+                    v2_done = status.get("v2_status") == "success"
+                    
+                    if modular_done and v2_done:
+                        status["message"] = "处理完成"
+                    elif modular_done:
+                        status["message"] = "modular版本处理中，V2版本已完成"
+                    elif v2_done:
+                        status["message"] = "V2版本处理中，modular版本已完成"
+                    else:
+                        status["message"] = "正在处理，请稍候..."
+                    
+                    task_status[task_id] = status
+                save_task_status()  # 保存到文件
+                
+                last_check_time = current_time
+            
+            # 等待一小段时间再检查
+            time.sleep(1)
+        
+        # 等待处理线程完成
+        processing_thread.join()
+        
+        # 最终检查输出文件
         modular_exists = modular_output.exists() and modular_output.stat().st_size > 0
         v2_exists = v2_output.exists() and v2_output.stat().st_size > 0
         
-        # 如果有任何一个输出文件，就认为部分成功
+        # 更新最终状态
         if modular_exists or v2_exists:
-            # 更新状态为成功（支持部分成功）
             result = {
                 "status": "success",
-                "message": "处理成功" if (modular_exists and v2_exists) else "部分处理成功",
+                "message": "处理完成" if (modular_exists and v2_exists) else "部分处理完成",
                 "completed_at": datetime.now().isoformat()
             }
             
             if modular_exists:
                 result["modular_output"] = str(modular_output)
+                result["modular_status"] = "success"
+            else:
+                result["modular_status"] = "failed"
+            
             if v2_exists:
                 result["v2_output"] = str(v2_output)
-            
-            # 如果只有一个成功，添加提示
-            if modular_exists and not v2_exists:
-                result["message"] = "处理成功（modular版本）"
-            elif v2_exists and not modular_exists:
-                result["message"] = "处理成功（V2版本）"
+                result["v2_status"] = "success"
+            else:
+                result["v2_status"] = "failed"
             
             with task_lock:
                 task_status[task_id].update(result)
@@ -260,7 +325,9 @@ def process_video_background(task_id: str, dance_path: Path, bgm_path: Path, out
                     "status": "failed",
                     "error": "处理失败",
                     "message": "处理失败",
-                    "completed_at": datetime.now().isoformat()
+                    "completed_at": datetime.now().isoformat(),
+                    "modular_status": "failed",
+                    "v2_status": "failed"
                 }
             save_task_status()  # 保存到文件
     
@@ -380,8 +447,19 @@ async def get_task_status(task_id: str):
         "message": status.get("message", "")
     }
     
+    # 添加modular和v2的状态
+    result["modular_status"] = status.get("modular_status", "processing")
+    result["v2_status"] = status.get("v2_status", "processing")
+    
     # 如果成功，添加输出文件信息
     if status["status"] == "success":
+        if "modular_output" in status:
+            result["modular_output"] = status["modular_output"]
+        if "v2_output" in status:
+            result["v2_output"] = status["v2_output"]
+    
+    # 如果处理中，也返回已完成的输出文件
+    if status["status"] == "processing":
         if "modular_output" in status:
             result["modular_output"] = status["modular_output"]
         if "v2_output" in status:

@@ -28,7 +28,8 @@ const bgmFileInput = document.getElementById('bgm-file');
 const processBtn = document.getElementById('process-btn');
 const statusText = document.getElementById('status-text');
 const downloadSection = document.getElementById('download-section');
-const downloadBtn = document.getElementById('download-btn');
+const downloadModularBtn = document.getElementById('download-modular-btn');
+const downloadV2Btn = document.getElementById('download-v2-btn');
 
 // 初始化
 document.addEventListener('DOMContentLoaded', () => {
@@ -285,13 +286,18 @@ async function pollTaskStatus(taskId) {
             
             const result = await response.json();
             
+            // 更新状态
+            state.taskId = result.task_id;
+            state.modularOutput = result.modular_output || null;
+            state.v2Output = result.v2_output || null;
+            
+            // 更新下载按钮状态
+            updateDownloadButtons(result);
+            
             if (result.status === 'success') {
                 // 处理成功
                 clearInterval(pollInterval);
-                state.taskId = result.task_id;
-                state.modularOutput = result.modular_output || null;
-                state.v2Output = result.v2_output || null;
-                updateStatus('处理完成！', 'success');
+                updateStatus(result.message || '处理完成！', 'success');
                 downloadSection.style.display = 'block';
                 processBtn.disabled = false;
                 processBtn.textContent = '开始处理';
@@ -309,11 +315,17 @@ async function pollTaskStatus(taskId) {
                 const elapsedMinutes = Math.floor(elapsedSeconds / 60);
                 const remainingSeconds = elapsedSeconds % 60;
                 
-                // 检查是否长时间没有进展（超过5分钟）
+                // 显示详细状态消息
+                const statusMsg = result.message || '正在处理，请稍候...';
                 if (elapsedSeconds > 300) {
-                    updateStatus(`正在处理... (已等待${elapsedMinutes}分${remainingSeconds}秒，Render免费层可能较慢，请耐心等待)`, 'processing');
+                    updateStatus(`${statusMsg} (已等待${elapsedMinutes}分${remainingSeconds}秒)`, 'processing');
                 } else {
-                    updateStatus(`正在处理... (已等待${elapsedSeconds}秒)`, 'processing');
+                    updateStatus(`${statusMsg} (已等待${elapsedSeconds}秒)`, 'processing');
+                }
+                
+                // 如果有部分完成，显示下载区域
+                if (result.modular_output || result.v2_output) {
+                    downloadSection.style.display = 'block';
                 }
             }
         } catch (error) {
