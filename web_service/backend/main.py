@@ -229,15 +229,15 @@ def process_video_background(task_id: str, dance_path: Path, bgm_path: Path, out
             if not modular_exists and not v2_exists:
                 error_msg = f"处理完成但未找到输出文件。输出目录: {output_dir}，文件列表: {list(output_dir.glob('*'))}"
                 print(f"ERROR: {error_msg}")
-            with task_lock:
-                task_status[task_id] = {
-                    "status": "failed",
-                    "error": "处理失败",
-                    "message": "处理完成但未找到输出文件",
-                    "completed_at": datetime.now().isoformat()
-                }
-            save_task_status()  # 保存到文件
-            return
+                with task_lock:
+                    task_status[task_id] = {
+                        "status": "failed",
+                        "error": "处理失败",
+                        "message": "处理完成但未找到输出文件",
+                        "completed_at": datetime.now().isoformat()
+                    }
+                save_task_status()  # 保存到文件
+                return
             
             # 更新状态为成功
             result = {
