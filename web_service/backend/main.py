@@ -10,6 +10,7 @@ import uuid
 import tempfile
 import shutil
 import threading
+import json
 from pathlib import Path
 from datetime import datetime, timedelta
 from typing import Optional, Dict
@@ -53,8 +54,71 @@ UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 # 任务状态管理（用于异步处理）
+TASK_STATUS_FILE = project_root / "outputs" / "task_status.json"
 task_status: Dict[str, dict] = {}
 task_lock = threading.Lock()
+
+
+def save_task_status():
+    """保存任务状态到文件"""
+    try:
+        with task_lock:
+            # 创建临时文件，然后原子性替换
+            temp_file = TASK_STATUS_FILE.with_suffix('.tmp')
+            with open(temp_file, 'w', encoding='utf-8') as f:
+                json.dump(task_status, f, ensure_ascii=False, indent=2)
+            # 原子性替换
+            temp_file.replace(TASK_STATUS_FILE)
+    except Exception as e:
+        print(f"WARNING: 保存任务状态失败: {e}")
+
+
+def load_task_status():
+    """从文件加载任务状态"""
+    try:
+        if TASK_STATUS_FILE.exists():
+            with open(TASK_STATUS_FILE, 'r', encoding='utf-8') as f:
+                loaded_status = json.load(f)
+                with task_lock:
+                    task_status.update(loaded_status)
+                print(f"✅ 已加载 {len(loaded_status)} 个任务状态")
+    except Exception as e:
+        print(f"WARNING: 加载任务状态失败: {e}")
+
+
+def cleanup_old_tasks():
+    """清理24小时前的已完成任务状态"""
+    try:
+        cutoff_time = datetime.now() - timedelta(hours=24)
+        with task_lock:
+            to_remove = []
+            for task_id, status in task_status.items():
+                if status.get("status") in ["success", "failed"]:
+                    completed_at_str = status.get("completed_at")
+                    if completed_at_str:
+                        try:
+                            completed_at = datetime.fromisoformat(completed_at_str)
+                            if completed_at < cutoff_time:
+                                to_remove.append(task_id)
+                        except (ValueError, TypeError):
+                            # 如果时间格式错误，也清理掉
+                            to_remove.append(task_id)
+            
+            for task_id in to_remove:
+                del task_status[task_id]
+            
+            if to_remove:
+                print(f"🧹 清理了 {len(to_remove)} 个旧任务状态")
+                save_task_status()
+    except Exception as e:
+        print(f"WARNING: 清理任务状态失败: {e}")
+
+
+# 启动时加载任务状态
+load_task_status()
+
+# 启动时清理旧任务
+cleanup_old_tasks()
 
 
 @app.get("/")
@@ -165,14 +229,15 @@ def process_video_background(task_id: str, dance_path: Path, bgm_path: Path, out
             if not modular_exists and not v2_exists:
                 error_msg = f"处理完成但未找到输出文件。输出目录: {output_dir}，文件列表: {list(output_dir.glob('*'))}"
                 print(f"ERROR: {error_msg}")
-                with task_lock:
-                    task_status[task_id] = {
-                        "status": "failed",
-                        "error": "处理失败",
-                        "message": "处理完成但未找到输出文件",
-                        "completed_at": datetime.now().isoformat()
-                    }
-                return
+            with task_lock:
+                task_status[task_id] = {
+                    "status": "failed",
+                    "error": "处理失败",
+                    "message": "处理完成但未找到输出文件",
+                    "completed_at": datetime.now().isoformat()
+                }
+            save_task_status()  # 保存到文件
+            return
             
             # 更新状态为成功
             result = {
@@ -188,6 +253,7 @@ def process_video_background(task_id: str, dance_path: Path, bgm_path: Path, out
             
             with task_lock:
                 task_status[task_id].update(result)
+            save_task_status()  # 保存到文件
         else:
             # 记录失败原因
             print(f"ERROR: 并行处理器返回失败，task_id: {task_id}")
@@ -201,6 +267,7 @@ def process_video_background(task_id: str, dance_path: Path, bgm_path: Path, out
                     "message": "处理失败",
                     "completed_at": datetime.now().isoformat()
                 }
+            save_task_status()  # 保存到文件
     
     except ImportError as e:
         error_msg = f"导入并行处理器失败: {str(e)}"
@@ -214,6 +281,7 @@ def process_video_background(task_id: str, dance_path: Path, bgm_path: Path, out
                 "message": f"系统错误: {error_msg}",
                 "completed_at": datetime.now().isoformat()
             }
+        save_task_status()  # 保存到文件
     except Exception as e:
         error_trace = traceback.format_exc()
         error_msg = f"处理异常: {str(e)}"
@@ -226,6 +294,7 @@ def process_video_background(task_id: str, dance_path: Path, bgm_path: Path, out
                 "message": "服务器内部错误",
                 "completed_at": datetime.now().isoformat()
             }
+        save_task_status()  # 保存到文件
 
 
 @app.post("/api/process")
@@ -269,6 +338,7 @@ async def process_video(
             "message": "任务已提交，正在处理...",
             "created_at": datetime.now().isoformat()
         }
+    save_task_status()  # 保存到文件
     
     # 启动后台处理线程
     thread = threading.Thread(
