@@ -127,53 +127,20 @@ async def upload_video(
         )
 
 
-@app.post("/api/process")
-async def process_video(
-    dance_file_id: str = Form(...),
-    bgm_file_id: str = Form(...)
-):
-    """
-    处理视频（同步处理）
-    
-    注意：处理时间可能较长（几分钟到十几分钟），
-    如果浏览器或代理有超时限制，可能需要改为异步处理。
-    """
-    """
-    处理视频（同步处理）
-    
-    参数:
-        dance_file_id: 原始视频文件ID
-        bgm_file_id: 音源视频文件ID
-    
-    返回:
-        task_id: 任务ID
-        status: 处理状态
-        output_file: 输出文件路径（如果成功）
-        error: 错误信息（如果失败）
-    """
-    # 查找文件
-    dance_files = list(UPLOAD_DIR.glob(f"{dance_file_id}_dance.*"))
-    bgm_files = list(UPLOAD_DIR.glob(f"{bgm_file_id}_bgm.*"))
-    
-    if not dance_files:
-        raise HTTPException(status_code=404, detail="原始视频文件不存在")
-    if not bgm_files:
-        raise HTTPException(status_code=404, detail="音源视频文件不存在")
-    
-    dance_path = dance_files[0]
-    bgm_path = bgm_files[0]
-    
-    # 生成输出文件路径
-    task_id = str(uuid.uuid4())
-    output_dir = OUTPUT_DIR / task_id
-    output_dir.mkdir(parents=True, exist_ok=True)
-    
-    # 调用并行处理器
+def process_video_background(task_id: str, dance_path: Path, bgm_path: Path, output_dir: Path):
+    """后台处理视频的函数"""
     try:
-        import sys
         import traceback
         
-        # 确保可以导入并行处理器（添加项目根目录到路径）
+        # 更新状态为处理中
+        with task_lock:
+            task_status[task_id] = {
+                "status": "processing",
+                "message": "正在处理，请稍候...",
+                "started_at": datetime.now().isoformat()
+            }
+        
+        # 确保可以导入并行处理器
         if str(project_root) not in sys.path:
             sys.path.insert(0, str(project_root))
         
@@ -196,21 +163,22 @@ async def process_video(
             v2_exists = v2_output.exists()
             
             if not modular_exists and not v2_exists:
-                # 记录详细错误
                 error_msg = f"处理完成但未找到输出文件。输出目录: {output_dir}，文件列表: {list(output_dir.glob('*'))}"
                 print(f"ERROR: {error_msg}")
-                return {
-                    "task_id": task_id,
-                    "status": "failed",
-                    "error": "处理失败",
-                    "message": "处理完成但未找到输出文件"
-                }
+                with task_lock:
+                    task_status[task_id] = {
+                        "status": "failed",
+                        "error": "处理失败",
+                        "message": "处理完成但未找到输出文件",
+                        "completed_at": datetime.now().isoformat()
+                    }
+                return
             
-            # 返回所有可用的输出文件
+            # 更新状态为成功
             result = {
-                "task_id": task_id,
                 "status": "success",
-                "message": "处理成功"
+                "message": "处理成功",
+                "completed_at": datetime.now().isoformat()
             }
             
             if modular_exists:
@@ -218,56 +186,147 @@ async def process_video(
             if v2_exists:
                 result["v2_output"] = str(v2_output)
             
-            # 为了兼容，保留output_file字段（优先modular）
-            if modular_exists:
-                result["output_file"] = str(modular_output)
-            elif v2_exists:
-                result["output_file"] = str(v2_output)
-            
-            return result
+            with task_lock:
+                task_status[task_id].update(result)
         else:
             # 记录失败原因
             print(f"ERROR: 并行处理器返回失败，task_id: {task_id}")
             print(f"ERROR: 输出目录: {output_dir}")
             print(f"ERROR: 输出目录内容: {list(output_dir.glob('*'))}")
             
-            # 检查是否有对比报告文件，可能包含错误信息
-            report_file = output_dir / f"{task_id}_comparison_report.txt"
-            if report_file.exists():
-                with open(report_file, 'r', encoding='utf-8') as f:
-                    report_content = f.read()
-                    print(f"ERROR: 报告内容（前500字符）: {report_content[:500]}")
-            
-            return {
-                "task_id": task_id,
-                "status": "failed",
-                "error": "处理失败",
-                "message": "处理失败"
-            }
+            with task_lock:
+                task_status[task_id] = {
+                    "status": "failed",
+                    "error": "处理失败",
+                    "message": "处理失败",
+                    "completed_at": datetime.now().isoformat()
+                }
     
     except ImportError as e:
         error_msg = f"导入并行处理器失败: {str(e)}"
         print(f"ERROR: {error_msg}")
         print(f"ERROR: sys.path: {sys.path}")
         print(f"ERROR: project_root: {project_root}")
-        return {
-            "task_id": task_id,
-            "status": "failed",
-            "error": "处理失败",
-            "message": f"系统错误: {error_msg}"
-        }
+        with task_lock:
+            task_status[task_id] = {
+                "status": "failed",
+                "error": "处理失败",
+                "message": f"系统错误: {error_msg}",
+                "completed_at": datetime.now().isoformat()
+            }
     except Exception as e:
-        # 记录详细错误信息
         error_trace = traceback.format_exc()
         error_msg = f"处理异常: {str(e)}"
         print(f"ERROR: {error_msg}")
         print(f"ERROR: {error_trace}")
-        return {
-            "task_id": task_id,
-            "status": "failed",
-            "error": "处理失败",
-            "message": error_msg
+        with task_lock:
+            task_status[task_id] = {
+                "status": "failed",
+                "error": "处理失败",
+                "message": "服务器内部错误",
+                "completed_at": datetime.now().isoformat()
+            }
+
+
+@app.post("/api/process")
+async def process_video(
+    dance_file_id: str = Form(...),
+    bgm_file_id: str = Form(...)
+):
+    """
+    提交视频处理任务（异步处理）
+    
+    参数:
+        dance_file_id: 原始视频文件ID
+        bgm_file_id: 音源视频文件ID
+    
+    返回:
+        task_id: 任务ID
+        status: 任务状态（pending）
+        message: 提示信息
+    """
+    # 查找文件
+    dance_files = list(UPLOAD_DIR.glob(f"{dance_file_id}_dance.*"))
+    bgm_files = list(UPLOAD_DIR.glob(f"{bgm_file_id}_bgm.*"))
+    
+    if not dance_files:
+        raise HTTPException(status_code=404, detail="原始视频文件不存在")
+    if not bgm_files:
+        raise HTTPException(status_code=404, detail="音源视频文件不存在")
+    
+    dance_path = dance_files[0]
+    bgm_path = bgm_files[0]
+    
+    # 生成任务ID和输出目录
+    task_id = str(uuid.uuid4())
+    output_dir = OUTPUT_DIR / task_id
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
+    # 初始化任务状态
+    with task_lock:
+        task_status[task_id] = {
+            "status": "pending",
+            "message": "任务已提交，正在处理...",
+            "created_at": datetime.now().isoformat()
         }
+    
+    # 启动后台处理线程
+    thread = threading.Thread(
+        target=process_video_background,
+        args=(task_id, dance_path, bgm_path, output_dir),
+        daemon=True  # 设置为守护线程，主进程退出时自动退出
+    )
+    thread.start()
+    
+    # 立即返回任务ID
+    return {
+        "task_id": task_id,
+        "status": "pending",
+        "message": "任务已提交，正在处理..."
+    }
+
+
+@app.get("/api/status/{task_id}")
+async def get_task_status(task_id: str):
+    """
+    查询任务处理状态
+    
+    参数:
+        task_id: 任务ID
+    
+    返回:
+        task_id: 任务ID
+        status: 任务状态（pending/processing/success/failed）
+        message: 状态消息
+        modular_output: modular版本输出文件（如果成功）
+        v2_output: v2版本输出文件（如果成功）
+        error: 错误信息（如果失败）
+    """
+    with task_lock:
+        status = task_status.get(task_id)
+    
+    if not status:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    
+    # 返回任务状态
+    result = {
+        "task_id": task_id,
+        "status": status["status"],
+        "message": status.get("message", "")
+    }
+    
+    # 如果成功，添加输出文件信息
+    if status["status"] == "success":
+        if "modular_output" in status:
+            result["modular_output"] = status["modular_output"]
+        if "v2_output" in status:
+            result["v2_output"] = status["v2_output"]
+    
+    # 如果失败，添加错误信息
+    if status["status"] == "failed":
+        result["error"] = status.get("error", "处理失败")
+    
+    return result
 
 
 @app.get("/api/download/{task_id}")
