@@ -206,7 +206,7 @@ function updateProcessButton() {
     }
 }
 
-// 处理视频
+// 处理视频（异步处理）
 async function processVideo() {
     if (!state.danceFileId || !state.bgmFileId) {
         alert('请先上传两个视频文件');
@@ -219,41 +219,21 @@ async function processVideo() {
     
     try {
         processBtn.disabled = true;
-        processBtn.textContent = '处理中...';
-        updateStatus('正在处理，请稍候...（这可能需要几分钟）', 'processing');
+        processBtn.textContent = '提交中...';
+        updateStatus('正在提交任务...', 'processing');
         downloadSection.style.display = 'none';
         
-        // 创建AbortController用于超时控制
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => {
-            controller.abort();
-        }, 300000); // 5分钟超时（视频处理可能需要较长时间）
-        
-        let response;
-        try {
-            response = await fetch(`${API_BASE_URL}/api/process`, {
-                method: 'POST',
-                body: formData,
-                signal: controller.signal
-            });
-            clearTimeout(timeoutId);
-        } catch (error) {
-            clearTimeout(timeoutId);
-            if (error.name === 'AbortError') {
-                throw new Error('处理超时：视频处理时间过长，请稍后重试或使用较小的视频文件');
-            }
-            // 如果是连接错误，提供更友好的提示
-            if (error.message.includes('Failed to fetch') || error.message.includes('ERR_CONNECTION_CLOSED')) {
-                throw new Error('连接中断：可能是Render服务休眠或超时。请稍后重试，或使用较小的测试视频。');
-            }
-            throw error;
-        }
+        // 提交任务
+        const response = await fetch(`${API_BASE_URL}/api/process`, {
+            method: 'POST',
+            body: formData
+        });
         
         if (!response.ok) {
-            let errorDetail = '处理失败';
+            let errorDetail = '提交失败';
             try {
                 const error = await response.json();
-                errorDetail = error.detail || error.message || error.error || '处理失败';
+                errorDetail = error.detail || error.message || error.error || '提交失败';
             } catch (e) {
                 errorDetail = `HTTP ${response.status}: ${response.statusText}`;
             }
@@ -261,33 +241,91 @@ async function processVideo() {
         }
         
         const result = await response.json();
+        const taskId = result.task_id;
         
-        if (result.status === 'success') {
-            state.taskId = result.task_id;
-            state.modularOutput = result.modular_output || null;
-            state.v2Output = result.v2_output || null;
-            updateStatus('处理完成！', 'success');
-            downloadSection.style.display = 'block';
-        } else {
-            const errorMsg = result.message || result.error || '处理失败';
-            updateStatus(`处理失败: ${errorMsg}`, 'error');
-            console.error('Process failed:', result);
-        }
+        // 更新按钮状态
+        processBtn.textContent = '处理中...';
+        updateStatus('任务已提交，正在处理...', 'processing');
+        
+        // 开始轮询状态
+        pollTaskStatus(taskId);
         
     } catch (error) {
         const errorMsg = error.message || '处理失败';
-        if (errorMsg.includes('超时') || errorMsg.includes('timeout') || errorMsg.includes('aborted')) {
-            updateStatus(`处理超时: 视频处理时间过长。Render免费层有超时限制，建议使用较小的测试视频或升级到付费计划。`, 'error');
-        } else if (errorMsg.includes('连接中断') || errorMsg.includes('ERR_CONNECTION_CLOSED') || errorMsg.includes('Failed to fetch')) {
-            updateStatus(`连接中断: Render服务可能已休眠或超时。请等待几秒后重试，或使用较小的测试视频。`, 'error');
-        } else {
-            updateStatus(`处理失败: ${errorMsg}`, 'error');
-        }
+        updateStatus(`提交失败: ${errorMsg}`, 'error');
         console.error('Process error:', error);
-    } finally {
         processBtn.disabled = false;
         processBtn.textContent = '开始处理';
     }
+}
+
+// 轮询任务状态
+async function pollTaskStatus(taskId) {
+    const maxAttempts = 120; // 最多轮询120次（10分钟，每5秒一次）
+    let attempts = 0;
+    let pollInterval = null;
+    
+    const poll = async () => {
+        attempts++;
+        
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/status/${taskId}`);
+            
+            if (!response.ok) {
+                if (response.status === 404) {
+                    updateStatus('任务不存在', 'error');
+                    clearInterval(pollInterval);
+                    processBtn.disabled = false;
+                    processBtn.textContent = '开始处理';
+                    return;
+                }
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            const result = await response.json();
+            
+            if (result.status === 'success') {
+                // 处理成功
+                clearInterval(pollInterval);
+                state.taskId = result.task_id;
+                state.modularOutput = result.modular_output || null;
+                state.v2Output = result.v2_output || null;
+                updateStatus('处理完成！', 'success');
+                downloadSection.style.display = 'block';
+                processBtn.disabled = false;
+                processBtn.textContent = '开始处理';
+            } else if (result.status === 'failed') {
+                // 处理失败
+                clearInterval(pollInterval);
+                const errorMsg = result.error || result.message || '处理失败';
+                updateStatus(`处理失败: ${errorMsg}`, 'error');
+                console.error('Process failed:', result);
+                processBtn.disabled = false;
+                processBtn.textContent = '开始处理';
+            } else if (result.status === 'processing' || result.status === 'pending') {
+                // 继续处理中
+                const elapsedSeconds = attempts * 5;
+                updateStatus(`正在处理... (已等待${elapsedSeconds}秒)`, 'processing');
+            }
+        } catch (error) {
+            console.error('Poll error:', error);
+            // 继续轮询，不中断
+        }
+        
+        // 超时检查
+        if (attempts >= maxAttempts) {
+            clearInterval(pollInterval);
+            updateStatus('处理超时：处理时间过长，请稍后重试', 'error');
+            processBtn.disabled = false;
+            processBtn.textContent = '开始处理';
+        }
+    };
+    
+    // 立即执行一次
+    await poll();
+    
+    // 每5秒轮询一次
+    pollInterval = setInterval(poll, 5000);
 }
 
 // 更新状态显示

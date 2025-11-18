@@ -9,9 +9,10 @@ import sys
 import uuid
 import tempfile
 import shutil
+import threading
 from pathlib import Path
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Optional, Dict
 
 from fastapi import FastAPI, UploadFile, File, HTTPException, Form
 from fastapi.responses import FileResponse, JSONResponse
@@ -50,6 +51,10 @@ CLEANUP_AGE_HOURS = 24  # 24小时后清理临时文件
 # 确保目录存在
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+# 任务状态管理（用于异步处理）
+task_status: Dict[str, dict] = {}
+task_lock = threading.Lock()
 
 
 @app.get("/")
