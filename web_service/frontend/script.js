@@ -51,8 +51,7 @@ const bgmFileInput = document.getElementById('bgm-file');
 const processBtn = document.getElementById('process-btn');
 const statusText = document.getElementById('status-text');
 const downloadSection = document.getElementById('download-section');
-const downloadModularBtn = document.getElementById('download-modular-btn');
-const downloadV2Btn = document.getElementById('download-v2-btn');
+const downloadBtn = document.getElementById('download-btn');
 
 // 初始化
 document.addEventListener('DOMContentLoaded', () => {
@@ -90,14 +89,9 @@ function resetState() {
     downloadSection.style.display = 'none';
     
     // 重置下载按钮状态
-    downloadModularBtn.disabled = true;
-    downloadModularBtn.querySelector('.btn-status').textContent = '⏳';
-    downloadModularBtn.querySelector('.btn-text').textContent = '下载Modular算法结果';
-    downloadModularBtn.onclick = null;
-    downloadV2Btn.disabled = true;
-    downloadV2Btn.querySelector('.btn-status').textContent = '⏳';
-    downloadV2Btn.querySelector('.btn-text').textContent = '下载V2算法结果';
-    downloadV2Btn.onclick = null;
+    downloadBtn.disabled = true;
+    downloadBtn.textContent = '下载结果';
+    downloadBtn.onclick = null;
     
     // 重置处理按钮
     processBtn.disabled = true;
@@ -341,8 +335,17 @@ async function pollTaskStatus(taskId) {
             state.modularOutput = result.modular_output || null;
             state.v2Output = result.v2_output || null;
             
+            // 调试日志：检查两个版本的状态
+            console.log('任务状态更新:', {
+                task_id: result.task_id,
+                modular_status: result.modular_status,
+                modular_output: result.modular_output,
+                v2_status: result.v2_status,
+                v2_output: result.v2_output
+            });
+            
             // 更新下载按钮状态
-            updateDownloadButtons(result);
+            updateDownloadButton(result);
             
             if (result.status === 'success') {
                 // 处理成功
@@ -386,9 +389,10 @@ async function pollTaskStatus(taskId) {
                     updateStatus(`${statusMsg} (已等待${elapsedSeconds}秒)`, 'processing');
                 }
                 
-                // 如果有部分完成，显示下载区域
+                // 如果有部分完成，显示下载区域并更新按钮
                 if (result.modular_output || result.v2_output) {
                     downloadSection.style.display = 'block';
+                    updateDownloadButton(result);
                 }
             }
         } catch (error) {
@@ -433,51 +437,47 @@ function updateStatus(message, type = '') {
     }
 }
 
-// 更新下载按钮状态
-function updateDownloadButtons(result) {
+// 更新下载按钮状态（单个按钮，下载两个版本的结果）
+function updateDownloadButton(result) {
     const modularStatus = result.modular_status || 'processing';
     const v2Status = result.v2_status || 'processing';
+    const modularSuccess = modularStatus === 'success' && result.modular_output;
+    const v2Success = v2Status === 'success' && result.v2_output;
     
-    // 更新modular按钮
-    if (modularStatus === 'success' && result.modular_output) {
-        downloadModularBtn.disabled = false;
-        downloadModularBtn.querySelector('.btn-status').textContent = '✅';
-        downloadModularBtn.querySelector('.btn-text').textContent = '下载Modular算法结果';
-        downloadModularBtn.onclick = () => {
-            const url = `${API_BASE_URL}/api/download/${result.task_id}?version=modular`;
-            downloadFile(url, 'modular.mp4');
+    // 如果至少有一个版本成功，启用下载按钮
+    if (modularSuccess || v2Success) {
+        downloadBtn.disabled = false;
+        downloadBtn.textContent = '下载结果';
+        downloadBtn.onclick = async () => {
+            console.log('开始下载，modular成功:', modularSuccess, 'v2成功:', v2Success);
+            
+            // 下载所有可用的版本结果
+            // 先下载modular版本（如果成功）
+            if (modularSuccess && result.modular_output) {
+                console.log('下载modular版本:', result.modular_output);
+                const modularUrl = `${API_BASE_URL}/api/download/${result.task_id}?version=modular`;
+                await downloadFile(modularUrl, 'beatsync_modular.mp4');
+            }
+            
+            // 延迟500ms后下载V2版本（如果成功），避免浏览器阻止多个下载
+            if (v2Success && result.v2_output) {
+                console.log('延迟下载V2版本:', result.v2_output);
+                setTimeout(async () => {
+                    const v2Url = `${API_BASE_URL}/api/download/${result.task_id}?version=v2`;
+                    await downloadFile(v2Url, 'beatsync_v2.mp4');
+                }, 500);
+            }
         };
-    } else if (modularStatus === 'failed') {
-        downloadModularBtn.disabled = true;
-        downloadModularBtn.querySelector('.btn-status').textContent = '❌';
-        downloadModularBtn.querySelector('.btn-text').textContent = 'Modular版本处理失败';
-        downloadModularBtn.onclick = null;
+    } else if (modularStatus === 'failed' && v2Status === 'failed') {
+        // 两个版本都失败
+        downloadBtn.disabled = true;
+        downloadBtn.textContent = '处理失败';
+        downloadBtn.onclick = null;
     } else {
-        downloadModularBtn.disabled = true;
-        downloadModularBtn.querySelector('.btn-status').textContent = '⏳';
-        downloadModularBtn.querySelector('.btn-text').textContent = 'Modular版本处理中...';
-        downloadModularBtn.onclick = null;
-    }
-    
-    // 更新v2按钮
-    if (v2Status === 'success' && result.v2_output) {
-        downloadV2Btn.disabled = false;
-        downloadV2Btn.querySelector('.btn-status').textContent = '✅';
-        downloadV2Btn.querySelector('.btn-text').textContent = '下载V2算法结果';
-        downloadV2Btn.onclick = () => {
-            const url = `${API_BASE_URL}/api/download/${result.task_id}?version=v2`;
-            downloadFile(url, 'v2.mp4');
-        };
-    } else if (v2Status === 'failed') {
-        downloadV2Btn.disabled = true;
-        downloadV2Btn.querySelector('.btn-status').textContent = '❌';
-        downloadV2Btn.querySelector('.btn-text').textContent = 'V2版本处理失败';
-        downloadV2Btn.onclick = null;
-    } else {
-        downloadV2Btn.disabled = true;
-        downloadV2Btn.querySelector('.btn-status').textContent = '⏳';
-        downloadV2Btn.querySelector('.btn-text').textContent = 'V2版本处理中...';
-        downloadV2Btn.onclick = null;
+        // 处理中
+        downloadBtn.disabled = true;
+        downloadBtn.textContent = '处理中...';
+        downloadBtn.onclick = null;
     }
 }
 
@@ -594,46 +594,8 @@ async function downloadFile(url, filename) {
 }
 
 // 下载结果（自动下载所有可用版本）
-async function downloadResult() {
-    if (!state.taskId) {
-        alert('没有可下载的结果');
-        return;
-    }
-    
-    const downloads = [];
-    
-    // 下载modular版本
-    if (state.modularOutput) {
-        downloads.push(
-            downloadFile(
-                `${API_BASE_URL}/api/download/${state.taskId}?version=modular`,
-                `beatsync_${state.taskId}_modular.mp4`
-            )
-        );
-    }
-    
-    // 下载v2版本
-    if (state.v2Output) {
-        // 延迟一下，避免浏览器阻止多个下载
-        setTimeout(() => {
-            downloadFile(
-                `${API_BASE_URL}/api/download/${state.taskId}?version=v2`,
-                `beatsync_${state.taskId}_v2.mp4`
-            );
-        }, 500);
-    }
-    
-    // 等待所有下载完成
-    const results = await Promise.all(downloads);
-    const successCount = results.filter(r => r).length;
-    const totalCount = downloads.length + (state.v2Output ? 1 : 0);
-    
-    if (successCount < totalCount) {
-        alert(`下载完成：${successCount}/${totalCount} 个文件成功`);
-    }
-}
 
 // 绑定事件
 processBtn.addEventListener('click', processVideo);
-// 下载按钮的事件在updateDownloadButtons中动态绑定
+// 下载按钮的事件在updateDownloadButton中动态绑定
 

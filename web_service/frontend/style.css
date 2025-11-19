@@ -169,13 +169,6 @@ h1 {
     text-align: center;
 }
 
-.download-buttons {
-    display: flex;
-    gap: 15px;
-    justify-content: center;
-    flex-wrap: wrap;
-}
-
 .download-btn {
     background-color: #4CAF50;
     color: white;
@@ -185,11 +178,10 @@ h1 {
     border-radius: 4px;
     cursor: pointer;
     transition: background-color 0.3s;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    min-width: 180px;
-    justify-content: center;
+    width: 100%;
+    max-width: 300px;
+    margin: 0 auto;
+    display: block;
 }
 
 .download-btn:hover:not(:disabled) {
@@ -200,14 +192,6 @@ h1 {
     background-color: #cccccc;
     cursor: not-allowed;
     opacity: 0.7;
-}
-
-.download-btn .btn-status {
-    font-size: 18px;
-}
-
-.download-btn .btn-text {
-    font-weight: 500;
 }
 
 /* 响应式设计 */

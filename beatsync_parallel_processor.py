@@ -318,10 +318,22 @@ def process_with_v2(dance_video: str, bgm_video: str, output_video: str) -> dict
     except Exception as e:
         return {'program': 'V2版本', 'success': False, 'error': str(e)}
 
-def process_beat_sync_parallel(dance_video: str, bgm_video: str, output_dir: str, sample_name: str) -> bool:
-    """并行处理主函数"""
+def process_beat_sync_parallel(dance_video: str, bgm_video: str, output_dir: str, sample_name: str, parallel: bool = False) -> bool:
+    """
+    处理主函数（支持串行和并行模式）
+    
+    参数:
+        dance_video: dance视频路径
+        bgm_video: bgm视频路径
+        output_dir: 输出目录
+        sample_name: 样本名称
+        parallel: 是否使用并行模式（默认False，使用串行模式）
+                  - False: 串行模式（适合资源受限环境，如Render免费层）
+                  - True: 并行模式（适合资源充足环境，需要升级服务器后使用）
+    """
+    mode_name = "并行处理器" if parallel else "串行处理器"
     print("=" * 60)
-    print("BeatSync 并行处理器")
+    print(f"BeatSync {mode_name}")
     print("=" * 60)
     
     # 检查输入文件
@@ -346,8 +358,9 @@ def process_beat_sync_parallel(dance_video: str, bgm_video: str, output_dir: str
     print(f"输出目录: {output_dir}")
     print("-" * 40)
     
-    # 并行处理
-    print("\n步骤1: 并行处理...")
+    # 处理（串行或并行）
+    mode_text = "并行处理" if parallel else "串行处理"
+    print(f"\n步骤1: {mode_text}...")
     
     # 使用线程真正并行处理两个版本
     # 使用线程安全的字典存储结果
@@ -391,17 +404,28 @@ def process_beat_sync_parallel(dance_video: str, bgm_video: str, output_dir: str
                 v2_result.update(error_info)
             print(f"  ❌ V2版本处理异常: {str(e)}")
     
-    # 启动两个线程并行处理
-    t1 = threading.Thread(target=modular_thread, daemon=False)
-    t2 = threading.Thread(target=v2_thread, daemon=False)
-    
-    print("  启动modular版本和V2版本并行处理...")
-    t1.start()
-    t2.start()
-    
-    # 等待两个线程完成（即使一个失败，另一个也会继续）
-    t1.join()
-    t2.join()
+    # 根据parallel参数选择串行或并行模式
+    if parallel:
+        # 并行处理模式（适合资源充足环境）
+        print("  启动modular版本和V2版本并行处理...")
+        t1 = threading.Thread(target=modular_thread, daemon=False)
+        t2 = threading.Thread(target=v2_thread, daemon=False)
+        
+        t1.start()
+        t2.start()
+        
+        # 等待两个线程完成（即使一个失败，另一个也会继续）
+        t1.join()
+        t2.join()
+    else:
+        # 串行处理模式（适合资源受限环境，如Render免费层）
+        # Render免费层资源有限，并行处理会导致资源竞争，反而更慢
+        # 串行处理：先运行V2版本（通常更快），再运行modular版本
+        print("  启动V2版本处理（串行模式，避免资源竞争）...")
+        v2_thread()
+        
+        print("  启动modular版本处理（串行模式）...")
+        modular_thread()
     
     # 获取结果（线程安全）
     with result_lock:
@@ -502,15 +526,16 @@ def process_beat_sync_parallel(dance_video: str, bgm_video: str, output_dir: str
         return False
 
 def main():
-    parser = argparse.ArgumentParser(description='BeatSync 并行处理器')
+    parser = argparse.ArgumentParser(description='BeatSync 处理器（支持串行和并行模式）')
     parser.add_argument('--dance', required=True, help='dance视频文件路径')
     parser.add_argument('--bgm', required=True, help='bgm视频文件路径')
     parser.add_argument('--output-dir', required=True, help='输出目录路径')
     parser.add_argument('--sample-name', required=True, help='样本名称')
+    parser.add_argument('--parallel', action='store_true', help='使用并行模式（默认：串行模式，适合资源受限环境）')
     
     args = parser.parse_args()
     
-    success = process_beat_sync_parallel(args.dance, args.bgm, args.output_dir, args.sample_name)
+    success = process_beat_sync_parallel(args.dance, args.bgm, args.output_dir, args.sample_name, parallel=args.parallel)
     sys.exit(0 if success else 1)
 
 if __name__ == "__main__":
