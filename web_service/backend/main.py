@@ -745,23 +745,23 @@ async def download_result(task_id: str, version: Optional[str] = None):
     # 根据version参数选择文件（优先使用最终文件，如果没有则使用中间文件）
     if version == "v2" and v2_output.exists():
         output_file = v2_output
-        filename = f"beatsync_{task_id}_v2.mp4"
+        filename = f"v2_{task_id}.mp4"
     elif version == "modular":
         if modular_output.exists():
             output_file = modular_output
-            filename = f"beatsync_{task_id}_modular.mp4"
+            filename = f"modular_{task_id}.mp4"
         elif modular_intermediate.exists():
             output_file = modular_intermediate
-            filename = f"beatsync_{task_id}_modular_intermediate.mp4"
+            filename = f"modular_{task_id}_intermediate.mp4"
         else:
             raise HTTPException(status_code=404, detail="Modular版本输出文件不存在")
     elif modular_output.exists():
         # 默认返回modular版本
         output_file = modular_output
-        filename = f"beatsync_{task_id}_modular.mp4"
+        filename = f"modular_{task_id}.mp4"
     elif v2_output.exists():
         output_file = v2_output
-        filename = f"beatsync_{task_id}_v2.mp4"
+        filename = f"v2_{task_id}.mp4"
     else:
         raise HTTPException(status_code=404, detail="输出文件不存在")
     

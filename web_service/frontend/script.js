@@ -477,7 +477,8 @@ function updateDownloadButton(result) {
                     if (latestResult.modular_status === 'success' && latestResult.modular_output) {
                         console.log('下载modular版本:', latestResult.modular_output);
                         const modularUrl = `${API_BASE_URL}/api/download/${latestResult.task_id}?version=modular`;
-                        await downloadFile(modularUrl, 'beatsync_modular.mp4');
+                        const modularFilename = `modular_${latestResult.task_id}.mp4`;
+                        await downloadFile(modularUrl, modularFilename);
                     } else {
                         console.warn('Modular版本状态已变更，无法下载');
                         updateStatus('Modular版本不可用', 'error');
@@ -486,7 +487,8 @@ function updateDownloadButton(result) {
                     // 降级方案：使用当前result的值
                     if (result.modular_output) {
                         const modularUrl = `${API_BASE_URL}/api/download/${result.task_id}?version=modular`;
-                        await downloadFile(modularUrl, 'beatsync_modular.mp4');
+                        const modularFilename = `modular_${result.task_id}.mp4`;
+                        await downloadFile(modularUrl, modularFilename);
                     }
                 }
             } catch (error) {
@@ -524,7 +526,8 @@ function updateDownloadButton(result) {
                     if (latestResult.v2_status === 'success' && latestResult.v2_output) {
                         console.log('下载V2版本:', latestResult.v2_output);
                         const v2Url = `${API_BASE_URL}/api/download/${latestResult.task_id}?version=v2`;
-                        await downloadFile(v2Url, 'beatsync_v2.mp4');
+                        const v2Filename = `v2_${latestResult.task_id}.mp4`;
+                        await downloadFile(v2Url, v2Filename);
                     } else {
                         console.warn('V2版本状态已变更，无法下载');
                         updateStatus('V2版本不可用', 'error');
@@ -533,7 +536,8 @@ function updateDownloadButton(result) {
                     // 降级方案：使用当前result的值
                     if (result.v2_output) {
                         const v2Url = `${API_BASE_URL}/api/download/${result.task_id}?version=v2`;
-                        await downloadFile(v2Url, 'beatsync_v2.mp4');
+                        const v2Filename = `v2_${result.task_id}.mp4`;
+                        await downloadFile(v2Url, v2Filename);
                     }
                 }
             } catch (error) {
