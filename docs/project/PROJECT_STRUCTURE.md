@@ -28,18 +28,40 @@ BeatSync/
 │   ├── check_monitor.sh                   # 检查监控状态
 │   └── setup_auto_git.sh                 # Git自动化设置
 │
-├── docs/                                  # 项目文档
-│   ├── PROJECT_STATUS.md                  # 项目状态
-│   ├── PROJECT_SUMMARY.md                 # 项目总结
-│   ├── EXCEPTION_HANDLING_*.md            # 异常处理相关
-│   ├── MEMORY_OPTIMIZATION_SUMMARY.md     # 内存优化总结
-│   ├── SESSION_HANDOVER.md                # 会话交接
-│   ├── TEST_PLAN_VIDEO_FORMAT.md         # 测试计划
-│   ├── VIDEO_FORMAT_COMPATIBILITY.md      # 格式兼容性
-│   ├── WEB_SERVICE_ARCHITECTURE.md        # Web架构
-│   ├── GIT_*.md                           # Git相关文档
-│   ├── AUTO_*.md                          # 自动化相关文档
-│   └── FILE_MONITOR_GUIDE.md             # 文件监控指南
+├── docs/                                  # 项目文档（分类整理）
+│   ├── project/                           # 项目相关
+│   │   ├── PROJECT_STATUS.md              # 项目状态
+│   │   ├── PROJECT_STRUCTURE.md           # 项目结构
+│   │   ├── PROJECT_SUMMARY.md             # 项目总结
+│   │   └── SESSION_HANDOVER.md            # 会话交接
+│   │
+│   ├── deployment/                         # 部署相关
+│   │   ├── DEPLOYMENT_README.md           # 部署指南
+│   │   ├── DEPLOYMENT_CHECKLIST.md        # 部署检查清单
+│   │   ├── DEPLOYMENT_GUIDE.md            # 详细部署指南
+│   │   └── RENDER_PRICING_GUIDE.md       # Render定价指南
+│   │
+│   ├── development/                       # 开发相关
+│   │   ├── DEVELOPMENT_PRINCIPLES.md     # 开发原则
+│   │   ├── EXCEPTION_HANDLING_GUIDE.md   # 异常处理指南
+│   │   ├── MEMORY_OPTIMIZATION_SUMMARY.md # 内存优化总结
+│   │   └── PERFORMANCE_*.md               # 性能优化相关
+│   │
+│   ├── web-service/                       # Web服务相关
+│   │   ├── WEB_SERVICE_ARCHITECTURE.md   # Web架构
+│   │   ├── WEB_SERVICE_DESIGN.md         # Web设计
+│   │   ├── WEB_UI_DESIGN.md              # UI设计
+│   │   └── ASYNC_*.md                     # 异步处理相关
+│   │
+│   ├── troubleshooting/                   # 故障排除
+│   │   ├── CORS_FIX_GUIDE.md             # CORS修复指南
+│   │   ├── DEPENDENCIES_FIX.md           # 依赖修复
+│   │   └── PROCESS_FAILED_*.md           # 处理失败相关
+│   │
+│   └── git/                               # Git相关
+│       ├── GIT_COMMIT_GUIDE.md           # Git提交指南
+│       ├── GIT_QUICK_REFERENCE.md       # Git快速参考
+│       └── AUTO_*.md                     # 自动化相关
 │
 ├── archive/                               # 历史版本归档
 │   ├── beatsync_align_mode*.py            # 历史版本
@@ -84,13 +106,13 @@ BeatSync/
 
 ### 文档目录（docs/）
 
-包含所有项目文档，约20个文件：
-- 项目状态和总结
-- 异常处理指南
-- 内存优化总结
-- Git使用指南
-- 自动化文档
-- 测试计划等
+按功能分类整理，约60+个文件：
+- **project/**：项目状态、结构、总结
+- **deployment/**：部署指南、检查清单、定价指南
+- **development/**：开发原则、异常处理、性能优化
+- **web-service/**：Web架构、设计、异步处理
+- **troubleshooting/**：故障排除、修复指南
+- **git/**：Git使用指南、自动化文档
 
 ### 归档目录（archive/）
 
@@ -135,10 +157,16 @@ python3 beatsync_parallel_processor.py \
 
 ```bash
 # 查看项目状态
-cat docs/PROJECT_STATUS.md
+cat docs/project/PROJECT_STATUS.md
+
+# 查看部署指南
+cat docs/deployment/DEPLOYMENT_README.md
 
 # 查看Git指南
-cat docs/GIT_QUICK_REFERENCE.md
+cat docs/git/GIT_QUICK_REFERENCE.md
+
+# 查看故障排除
+cat docs/troubleshooting/TROUBLESHOOTING.md
 ```
 
 ## 项目特点

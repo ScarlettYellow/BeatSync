@@ -269,19 +269,47 @@ BeatSync 模块解耦精剪模式开始处理...
 
 ```
 BeatSync/
-├── beatsync_parallel_processor.py    # ⭐ 并行处理器（推荐）
-├── beatsync_fine_cut_modular.py      # Modular版本
-├── beatsync_badcase_fix_trim_v2.py   # V2版本
-├── beatsync_utils.py                  # 工具模块（异常处理）
-├── batch_parallel_processor.py        # 批量处理脚本
-├── regression_test.py                # 回归测试脚本
-├── test_exception_handling.py        # 异常处理测试
-├── README.md                          # 使用说明
-├── PROJECT_STATUS.md                  # 项目状态
-├── PROJECT_SUMMARY.md                 # 项目总结
-├── EXCEPTION_HANDLING_GUIDE.md       # 异常处理指南
-└── input_allcases/                   # 测试样本目录
+├── README.md                          # 项目说明
+├── render.yaml                        # Render部署配置
+│
+├── 核心程序（4个）
+│   ├── beatsync_parallel_processor.py    # ⭐ 并行处理器（推荐）
+│   ├── beatsync_fine_cut_modular.py      # Modular版本
+│   ├── beatsync_badcase_fix_trim_v2.py   # V2版本
+│   └── beatsync_utils.py                  # 工具模块
+│
+├── docs/                              # 项目文档（分类整理）
+│   ├── project/                       # 项目相关
+│   ├── deployment/                    # 部署相关
+│   ├── development/                   # 开发相关
+│   ├── web-service/                   # Web服务相关
+│   ├── troubleshooting/                # 故障排除
+│   └── git/                           # Git相关
+│
+├── scripts/                           # 脚本工具
+│   ├── git/                           # Git自动化脚本
+│   ├── test/                          # 测试脚本
+│   └── tools/                         # 工具脚本
+│
+├── web_service/                       # Web服务
+│   ├── backend/                       # 后端（FastAPI）
+│   └── frontend/                      # 前端（HTML/CSS/JS）
+│
+├── test_data/                         # 测试数据
+│   ├── input_allcases/                # 高分辨率测试样本
+│   ├── input_allcases_lowp/           # 低分辨率测试样本
+│   └── test_multiple_videoformats/    # 格式兼容性测试
+│
+├── outputs/                           # 输出目录
+├── archive/                           # 历史版本归档
+└── .gitignore                         # Git配置
 ```
+
+**详细文档**：
+- 项目状态：`docs/project/PROJECT_STATUS.md`
+- 项目结构：`docs/project/PROJECT_STRUCTURE.md`
+- 部署指南：`docs/deployment/DEPLOYMENT_README.md`
+- 开发原则：`docs/development/DEVELOPMENT_PRINCIPLES.md`
 
 ## 更新日志
 
