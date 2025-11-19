@@ -389,10 +389,25 @@ async function pollTaskStatus(taskId) {
                     updateStatus(`${statusMsg} (已等待${elapsedSeconds}秒)`, 'processing');
                 }
                 
+                // 检查是否所有版本都已完成（无论成功或失败）
+                const modularDone = result.modular_status === 'success' || result.modular_status === 'failed';
+                const v2Done = result.v2_status === 'success' || result.v2_status === 'failed';
+                const allDone = modularDone && v2Done;
+                
                 // 如果有部分完成，显示下载区域并更新按钮
                 if (result.modular_output || result.v2_output) {
                     downloadSection.style.display = 'block';
                     updateDownloadButton(result);
+                }
+                
+                // 如果所有版本都已完成，恢复处理按钮（允许开始新任务）
+                if (allDone) {
+                    processBtn.disabled = false;
+                    processBtn.textContent = '开始处理';
+                } else {
+                    // 仍在处理中，保持按钮状态
+                    processBtn.disabled = true;
+                    processBtn.textContent = '处理中...';
                 }
             }
         } catch (error) {
