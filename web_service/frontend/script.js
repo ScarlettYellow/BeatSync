@@ -464,23 +464,65 @@ function updateDownloadButton(result) {
         downloadBtn.disabled = false;
         downloadBtn.textContent = '下载结果';
         downloadBtn.onclick = async () => {
-            console.log('开始下载，modular成功:', modularSuccess, 'v2成功:', v2Success);
-            
-            // 下载所有可用的版本结果
-            // 先下载modular版本（如果成功）
-            if (modularSuccess && result.modular_output) {
-                console.log('下载modular版本:', result.modular_output);
-                const modularUrl = `${API_BASE_URL}/api/download/${result.task_id}?version=modular`;
-                await downloadFile(modularUrl, 'beatsync_modular.mp4');
-            }
-            
-            // 延迟500ms后下载V2版本（如果成功），避免浏览器阻止多个下载
-            if (v2Success && result.v2_output) {
-                console.log('延迟下载V2版本:', result.v2_output);
-                setTimeout(async () => {
-                    const v2Url = `${API_BASE_URL}/api/download/${result.task_id}?version=v2`;
-                    await downloadFile(v2Url, 'beatsync_v2.mp4');
-                }, 500);
+            // 重新获取最新状态（避免使用闭包中的旧值）
+            try {
+                const statusResponse = await fetch(`${API_BASE_URL}/api/status/${result.task_id}`);
+                if (statusResponse.ok) {
+                    const latestResult = await statusResponse.json();
+                    const latestModularSuccess = latestResult.modular_status === 'success' && latestResult.modular_output;
+                    const latestV2Success = latestResult.v2_status === 'success' && latestResult.v2_output;
+                    
+                    console.log('开始下载，modular成功:', latestModularSuccess, 'v2成功:', latestV2Success);
+                    console.log('最新状态:', {
+                        modular_status: latestResult.modular_status,
+                        modular_output: latestResult.modular_output,
+                        v2_status: latestResult.v2_status,
+                        v2_output: latestResult.v2_output
+                    });
+                    
+                    // 下载所有可用的版本结果
+                    // 先下载modular版本（如果成功）
+                    if (latestModularSuccess && latestResult.modular_output) {
+                        console.log('下载modular版本:', latestResult.modular_output);
+                        const modularUrl = `${API_BASE_URL}/api/download/${latestResult.task_id}?version=modular`;
+                        await downloadFile(modularUrl, 'beatsync_modular.mp4');
+                    }
+                    
+                    // 延迟500ms后下载V2版本（如果成功），避免浏览器阻止多个下载
+                    if (latestV2Success && latestResult.v2_output) {
+                        console.log('延迟下载V2版本:', latestResult.v2_output);
+                        setTimeout(async () => {
+                            const v2Url = `${API_BASE_URL}/api/download/${latestResult.task_id}?version=v2`;
+                            await downloadFile(v2Url, 'beatsync_v2.mp4');
+                        }, 500);
+                    }
+                } else {
+                    // 如果获取状态失败，使用当前result的值（降级方案）
+                    console.warn('获取最新状态失败，使用当前状态');
+                    if (modularSuccess && result.modular_output) {
+                        const modularUrl = `${API_BASE_URL}/api/download/${result.task_id}?version=modular`;
+                        await downloadFile(modularUrl, 'beatsync_modular.mp4');
+                    }
+                    if (v2Success && result.v2_output) {
+                        setTimeout(async () => {
+                            const v2Url = `${API_BASE_URL}/api/download/${result.task_id}?version=v2`;
+                            await downloadFile(v2Url, 'beatsync_v2.mp4');
+                        }, 500);
+                    }
+                }
+            } catch (error) {
+                console.error('获取最新状态时出错:', error);
+                // 降级方案：使用当前result的值
+                if (modularSuccess && result.modular_output) {
+                    const modularUrl = `${API_BASE_URL}/api/download/${result.task_id}?version=modular`;
+                    await downloadFile(modularUrl, 'beatsync_modular.mp4');
+                }
+                if (v2Success && result.v2_output) {
+                    setTimeout(async () => {
+                        const v2Url = `${API_BASE_URL}/api/download/${result.task_id}?version=v2`;
+                        await downloadFile(v2Url, 'beatsync_v2.mp4');
+                    }, 500);
+                }
             }
         };
     } else if (modularStatus === 'failed' && v2Status === 'failed') {
