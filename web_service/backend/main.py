@@ -56,6 +56,7 @@ app.add_middleware(
 UPLOAD_DIR = project_root / "outputs" / "web_uploads"
 OUTPUT_DIR = project_root / "outputs" / "web_outputs"
 CLEANUP_AGE_HOURS = 24  # 24小时后清理临时文件
+WEB_OUTPUTS_RETENTION_DAYS = 3  # Web输出保留3天
 
 # 确保目录存在
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
@@ -94,6 +95,36 @@ def load_task_status():
         print(f"WARNING: 加载任务状态失败: {e}")
 
 
+def cleanup_old_web_outputs():
+    """清理超过3天的Web输出文件"""
+    try:
+        if not OUTPUT_DIR.exists():
+            return
+        
+        cutoff_time = datetime.now() - timedelta(days=WEB_OUTPUTS_RETENTION_DAYS)
+        cleaned_count = 0
+        
+        for task_dir in OUTPUT_DIR.iterdir():
+            if not task_dir.is_dir():
+                continue
+            
+            try:
+                # 获取目录的修改时间
+                mtime = datetime.fromtimestamp(task_dir.stat().st_mtime)
+                if mtime < cutoff_time:
+                    # 删除超过3天的目录
+                    shutil.rmtree(task_dir)
+                    cleaned_count += 1
+                    print(f"INFO: 已清理旧的Web输出: {task_dir.name}")
+            except Exception as e:
+                print(f"WARNING: 清理Web输出失败 {task_dir}: {e}")
+        
+        if cleaned_count > 0:
+            print(f"✅ 已清理 {cleaned_count} 个超过{WEB_OUTPUTS_RETENTION_DAYS}天的Web输出目录")
+    except Exception as e:
+        print(f"WARNING: 清理Web输出时出错: {e}")
+
+
 def cleanup_old_tasks():
     """清理24小时前的已完成任务状态"""
     try:
@@ -127,6 +158,9 @@ load_task_status()
 
 # 启动时清理旧任务
 cleanup_old_tasks()
+
+# 启动时清理旧的Web输出
+cleanup_old_web_outputs()
 
 
 @app.get("/")
@@ -393,6 +427,17 @@ def process_video_background(task_id: str, dance_path: Path, bgm_path: Path, out
                 
                 if perf_logger:
                     perf_logger.finish(success=True)
+                
+                # 处理完成后，清理上传的文件
+                try:
+                    if dance_path.exists():
+                        dance_path.unlink()
+                        print(f"INFO: 已清理上传文件: {dance_path}")
+                    if bgm_path.exists():
+                        bgm_path.unlink()
+                        print(f"INFO: 已清理上传文件: {bgm_path}")
+                except Exception as cleanup_error:
+                    print(f"WARNING: 清理上传文件失败: {cleanup_error}")
             else:
                 # 记录失败原因
                 error_msg = f"并行处理器返回失败，task_id: {task_id}"
@@ -413,6 +458,17 @@ def process_video_background(task_id: str, dance_path: Path, bgm_path: Path, out
                 
                 if perf_logger:
                     perf_logger.finish(success=False, error_msg=error_msg)
+                
+                # 即使失败，也清理上传的文件（避免占用空间）
+                try:
+                    if dance_path.exists():
+                        dance_path.unlink()
+                        print(f"INFO: 已清理上传文件: {dance_path}")
+                    if bgm_path.exists():
+                        bgm_path.unlink()
+                        print(f"INFO: 已清理上传文件: {bgm_path}")
+                except Exception as cleanup_error:
+                    print(f"WARNING: 清理上传文件失败: {cleanup_error}")
         except Exception as status_error:
             # 即使更新状态时出错，也要检查文件是否存在
             print(f"WARNING: 更新状态时出错: {status_error}")
@@ -512,6 +568,17 @@ def process_video_background(task_id: str, dance_path: Path, bgm_path: Path, out
                 
                 if perf_logger:
                     perf_logger.finish(success=True)
+                
+                # 处理完成后，清理上传的文件
+                try:
+                    if dance_path.exists():
+                        dance_path.unlink()
+                        print(f"INFO: 已清理上传文件: {dance_path}")
+                    if bgm_path.exists():
+                        bgm_path.unlink()
+                        print(f"INFO: 已清理上传文件: {bgm_path}")
+                except Exception as cleanup_error:
+                    print(f"WARNING: 清理上传文件失败: {cleanup_error}")
             else:
                 # 文件未生成，标记为失败
                 if perf_logger:
@@ -726,29 +793,25 @@ async def health_check():
 # 启动时清理旧文件
 @app.on_event("startup")
 async def startup_event():
-    """启动时清理超过24小时的临时文件"""
+    """启动时清理超过24小时的临时文件和超过3天的Web输出"""
     cleanup_old_files()
+    cleanup_old_web_outputs()
 
 
 def cleanup_old_files():
-    """清理超过指定时间的临时文件"""
+    """清理超过指定时间的临时文件（仅清理web_uploads，web_outputs由cleanup_old_web_outputs处理）"""
     now = datetime.now()
-    for directory in [UPLOAD_DIR, OUTPUT_DIR]:
-        if not directory.exists():
-            continue
-        for item in directory.iterdir():
+    # 只清理web_uploads目录，web_outputs由专门的函数处理
+    if UPLOAD_DIR.exists():
+        for item in UPLOAD_DIR.iterdir():
             try:
                 if item.is_file():
                     file_time = datetime.fromtimestamp(item.stat().st_mtime)
                     if now - file_time > timedelta(hours=CLEANUP_AGE_HOURS):
                         item.unlink()
-                elif item.is_dir():
-                    # 对于目录，检查目录内所有文件
-                    dir_time = datetime.fromtimestamp(item.stat().st_mtime)
-                    if now - dir_time > timedelta(hours=CLEANUP_AGE_HOURS):
-                        shutil.rmtree(item)
+                        print(f"INFO: 已清理旧的上传文件: {item.name}")
             except Exception as e:
-                print(f"清理文件失败 {item}: {e}")
+                print(f"WARNING: 清理上传文件失败 {item}: {e}")
 
 
 if __name__ == "__main__":
