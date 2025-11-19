@@ -159,6 +159,10 @@ h1 {
     color: #DC3545;
 }
 
+.status-text.info {
+    color: #2196F3;
+}
+
 /* 下载区域 */
 .download-section {
     margin-top: 20px;

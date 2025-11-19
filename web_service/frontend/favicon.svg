@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- 背景渐变 -->
+  <defs>
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#4CAF50;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#45a049;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- 圆角矩形背景 -->
+  <rect width="100" height="100" fill="url(#bgGradient)" rx="20" ry="20"/>
+  
+  <!-- 音频波形（完全居中对称，横向宽度更大） -->
+  <g transform="translate(50, 50)">
+    <!-- 左侧波形（3条，从外到中心逐渐增高） -->
+    <rect x="-28" y="-8" width="6" height="16" rx="3" fill="white"/>
+    <rect x="-16" y="-18" width="6" height="36" rx="3" fill="white"/>
+    <rect x="-4" y="-28" width="6" height="56" rx="3" fill="white"/>
+    
+    <!-- 右侧波形（3条，与左侧完全对称） -->
+    <rect x="4" y="-28" width="6" height="56" rx="3" fill="white"/>
+    <rect x="16" y="-18" width="6" height="36" rx="3" fill="white"/>
+    <rect x="28" y="-8" width="6" height="16" rx="3" fill="white"/>
+  </g>
+  
+  <!-- 中心节拍点（表示同步对齐） -->
+  <circle cx="50" cy="50" r="3" fill="white" opacity="0.9"/>
+</svg>

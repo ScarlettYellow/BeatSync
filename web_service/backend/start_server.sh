@@ -1,5 +1,5 @@
 #!/bin/bash
-# 启动后端服务脚本
+# 启动后端服务脚本（本地开发用）
 
 cd "$(dirname "$0")"
 
@@ -10,5 +10,6 @@ echo ""
 echo "按 Ctrl+C 停止服务"
 echo ""
 
-python3 main.py
+# 使用uvicorn启动，支持热重载
+uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 

@@ -17,6 +17,7 @@ import tempfile
 from typing import Tuple, Optional
 import hashlib
 import json
+from datetime import datetime
 #
 # 启用行缓冲，确保日志实时写出（不影响功能/算法）
 try:
@@ -461,26 +462,37 @@ def alignment_module(dance_video: str, bgm_video: str, result_video: str,
     返回: (success: bool, dance_alignment: float) - 成功标志和dance视频的对齐点（秒）
     """
     try:
+        import time
+        step_start = time.time()
         print("=== 模块1: 对齐模块 ===")
         
         # 提取音频
-        print("提取音频片段（前30秒）...")
+        print("[步骤1.1] 提取音频片段（前30秒）...")
+        step_time = time.time()
         if not extract_audio_optimized(dance_video, "temp_dance_audio.wav", 30.0,
                                        enable_cache=enable_cache, cache_dir=cache_dir):
             print("提取dance音频失败")
             return False, 0.0
+        print(f"[步骤1.1] 完成，耗时: {time.time() - step_time:.1f}秒")
             
+        step_time = time.time()
         if not extract_audio_optimized(bgm_video, "temp_bgm_audio.wav", 30.0,
                                        enable_cache=enable_cache, cache_dir=cache_dir):
             print("提取bgm音频失败")
             return False, 0.0
+        print(f"[步骤1.2] 完成，耗时: {time.time() - step_time:.1f}秒")
         
         # 加载音频（以float32降低峰值内存），并在分析阶段转换为单声道
-        print("加载音频...")
+        print("[步骤1.3] 加载音频...")
+        step_time = time.time()
         dance_audio, sr = sf.read("temp_dance_audio.wav", dtype="float32", always_2d=False)
         bgm_audio, _ = sf.read("temp_bgm_audio.wav", dtype="float32", always_2d=False)
+        print(f"[步骤1.3] 完成，耗时: {time.time() - step_time:.1f}秒")
         print(f"音频长度: dance={len(dance_audio)/sr:.2f}s, bgm={len(bgm_audio)/sr:.2f}s")
+        
         # 仅用于对齐分析的单声道转换（输出仍保持双声道，不影响功能与精度）
+        print("[步骤1.4] 转换为单声道...")
+        step_time = time.time()
         if isinstance(dance_audio, np.ndarray) and dance_audio.ndim > 1:
             dance_mono = librosa.to_mono(dance_audio.T)
         else:
@@ -489,12 +501,17 @@ def alignment_module(dance_video: str, bgm_video: str, result_video: str,
             bgm_mono = librosa.to_mono(bgm_audio.T)
         else:
             bgm_mono = bgm_audio
+        print(f"[步骤1.4] 完成，耗时: {time.time() - step_time:.1f}秒")
         
         # 执行多策略融合对齐算法（使用单声道分析以控制内存）
+        print("[步骤1.5] 执行多策略融合对齐算法...")
+        step_time = time.time()
         ref_start, mov_start, confidence = find_beat_alignment_multi_strategy(dance_mono, bgm_mono, sr)
+        print(f"[步骤1.5] 完成，耗时: {time.time() - step_time:.1f}秒")
         
         dance_alignment = ref_start / sr  # 保存dance对齐点（秒）
         
+        print(f"[模块1] 总耗时: {time.time() - step_start:.1f}秒")
         print(f"对齐结果:")
         print(f"  dance 开始: {dance_alignment:.2f}s")
         print(f"  bgm 开始: {mov_start/sr:.2f}s")
@@ -504,11 +521,14 @@ def alignment_module(dance_video: str, bgm_video: str, result_video: str,
         del dance_mono, bgm_mono
         
         # 创建对齐视频
+        print("[步骤1.6] 创建对齐视频...")
+        step_time = time.time()
         if not create_aligned_video(dance_video, bgm_video, result_video, ref_start, mov_start, sr,
                                     fast_video=fast_video, hwaccel=hwaccel, video_encode=video_encode,
                                     enable_cache=enable_cache, cache_dir=cache_dir):
             print("创建对齐视频失败")
             return False, 0.0
+        print(f"[步骤1.6] 完成，耗时: {time.time() - step_time:.1f}秒")
         
         print("模块1完成: 对齐视频已生成")
         return True, dance_alignment
@@ -680,10 +700,13 @@ def trim_silent_segments_module(input_video: str, output_video: str, dance_video
         dance_alignment: dance视频的对齐点（秒）
     """
     try:
+        import time
+        step_start = time.time()
         print("=== 模块2: 裁剪模块 ===")
         
         # 1. 提取音频
         temp_audio = "temp_audio_for_detection.wav"
+        step_time = time.time()
         cmd_extract = [
             'ffmpeg', '-y',
             '-nostdin', '-hide_banner', '-v', 'error',
@@ -704,23 +727,31 @@ def trim_silent_segments_module(input_video: str, output_video: str, dance_video
             if result.returncode != 0:
                 print(f"提取音频失败: {result.stderr[:200]}")
                 return False
+        print(f"[步骤2.1] 完成，耗时: {time.time() - step_time:.1f}秒")
         
         # 2. 检测前面的无声段落长度（用于验证）
-        print("检测前面的无声段落...")
+        print("[步骤2.2] 检测前面的无声段落...")
+        step_time = time.time()
         silent_duration = detect_silent_segment_length(temp_audio)
+        print(f"[步骤2.2] 完成，耗时: {time.time() - step_time:.1f}秒")
         print(f"检测到前面无声段落长度: {silent_duration:.3f}s")
         
         # 3. 计算dance视频的有效内容时长
+        print("[步骤2.3] 计算dance视频有效内容时长...")
+        step_time = time.time()
         dance_duration = get_video_duration(dance_video)
         dance_effective_duration = dance_duration - dance_alignment
+        print(f"[步骤2.3] 完成，耗时: {time.time() - step_time:.1f}秒")
         print(f"dance视频总时长: {dance_duration:.3f}s")
         print(f"dance对齐点: {dance_alignment:.3f}s")
         print(f"dance有效内容时长: {dance_effective_duration:.3f}s")
         
         # 4. 检测末尾静音段落（使用音频衰减检测）
-        print("检测末尾静音段落...")
+        print("[步骤2.4] 检测末尾静音段落...")
+        step_time = time.time()
         input_video_duration = get_video_duration(input_video)
         trailing_silent_duration = detect_trailing_silent_with_decay(temp_audio, input_video_duration)
+        print(f"[步骤2.4] 完成，耗时: {time.time() - step_time:.1f}秒")
         
         # 5. 计算最终的有效时长
         # 使用dance有效内容时长和末尾静音检测结果的较小值
@@ -818,9 +849,14 @@ def trim_silent_segments_module(input_video: str, output_video: str, dance_video
                     if fb.returncode != 0:
                         print(f"裁剪视频失败（回退后仍失败）: {result.stderr}\nFB: {fb.stderr}")
                         return False
-            else:
-                print(f"裁剪视频失败: {result.stderr}")
-                return False
+                else:
+                    print(f"裁剪视频失败: {result.stderr[:200]}")
+                    return False
+            # 如果returncode是0，继续执行（不进入else）
+        
+        print(f"[步骤2.5] 完成，耗时: {time.time() - step_time:.1f}秒")
+        
+        print(f"[模块2] 总耗时: {time.time() - step_start:.1f}秒")
         
         # 5. 清理临时文件
         if os.path.exists(temp_audio):

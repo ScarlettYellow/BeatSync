@@ -732,18 +732,26 @@ def process_badcase_fix_trim(dance_video: str, bgm_video: str, output_video: str
                              threads: Optional[int] = 4,
                              lib_threads: Optional[int] = 1) -> bool:
     """处理badcase修复（裁剪版本）"""
+    import time
+    from datetime import datetime
+    total_start = time.time()
+    
+    print("=" * 60)
     print(f"BeatSync Badcase修复（裁剪版本）开始处理...")
-    print(f"  dance: {dance_video}")
-    print(f"  bgm: {bgm_video}")
-    print(f"  输出: {output_video}")
+    print(f"[总开始] 时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"[输入] dance: {dance_video}")
+    print(f"[输入] bgm: {bgm_video}")
+    print(f"[输出] output: {output_video}")
+    print("=" * 60)
     
     # 创建临时目录
     temp_dir = tempfile.mkdtemp()
-    print(f"临时目录: {temp_dir}")
+    print(f"[步骤0] 创建临时目录: {temp_dir}")
     
     try:
         # 提取音频
-        print("提取音频...")
+        print("[步骤1] 提取音频...")
+        step_start = time.time()
         dance_audio_path = os.path.join(temp_dir, "dance.wav")
         bgm_audio_path = os.path.join(temp_dir, "bgm.wav")
         
@@ -785,18 +793,27 @@ def process_badcase_fix_trim(dance_video: str, bgm_video: str, output_video: str
         badcase_type, gap_duration = detect_badcase_type(ref_start, mov_start, sr)
         
         if badcase_type != "NORMAL":
-            print(f"检测到badcase，使用裁剪方法修复...")
+            print(f"[步骤6] 检测到badcase，使用裁剪方法修复...")
+            step_start = time.time()
             success = create_trimmed_video(dance_video, bgm_video, output_video, badcase_type, gap_duration,
                                            fast_video=fast_video, hwaccel=hwaccel, video_encode=video_encode)
+            print(f"[步骤6] 完成，耗时: {time.time() - step_start:.1f}秒")
         else:
-            print("不是badcase，直接合成...")
+            print("[步骤6] 不是badcase，直接合成...")
+            step_start = time.time()
             success = create_trimmed_video(dance_video, bgm_video, output_video, badcase_type, 0,
                                            fast_video=fast_video, hwaccel=hwaccel, video_encode=video_encode)
+            print(f"[步骤6] 完成，耗时: {time.time() - step_start:.1f}秒")
         
+        total_elapsed = time.time() - total_start
+        print("=" * 60)
         if success:
             print(f"Badcase修复（裁剪版本）成功! 类型: {badcase_type}, 裁剪时间: {gap_duration:.2f}s")
         else:
             print("Badcase修复（裁剪版本）失败!")
+        print(f"[总完成] 时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        print(f"[总耗时] {total_elapsed:.1f}秒 ({total_elapsed/60:.1f}分钟)")
+        print("=" * 60)
         
         return success
         

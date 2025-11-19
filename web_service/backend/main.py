@@ -281,22 +281,30 @@ def process_video_background(task_id: str, dance_path: Path, bgm_path: Path, out
         modular_output = output_dir / f"{task_id}_modular.mp4"
         v2_output = output_dir / f"{task_id}_v2.mp4"
         
+        # 也检查中间文件（modular版本可能生成中间文件）
+        modular_intermediate = output_dir / f"{task_id}_modular_module1_aligned.mp4"
+        
         check_interval = 10  # 10秒检查一次
         last_check_time = time.time()
         
         while not processing_done.is_set():
             current_time = time.time()
             if current_time - last_check_time >= check_interval:
-                # 检查输出文件
-                modular_exists = modular_output.exists() and modular_output.stat().st_size > 0
+                # 检查输出文件（modular版本只检查最终文件，不接受中间文件）
+                modular_final_exists = modular_output.exists() and modular_output.stat().st_size > 0
+                modular_intermediate_exists = modular_intermediate.exists() and modular_intermediate.stat().st_size > 0
                 v2_exists = v2_output.exists() and v2_output.stat().st_size > 0
+                
+                # 如果只有中间文件，记录警告
+                if modular_intermediate_exists and not modular_final_exists:
+                    print(f"WARNING: Modular版本只生成了中间文件，模块2可能失败")
                 
                 # 更新状态
                 with task_lock:
                     status = task_status.get(task_id, {})
                     
-                    # 更新modular状态
-                    if modular_exists and status.get("modular_status") != "success":
+                    # 更新modular状态（使用modular_final_exists，因为这里只检查最终文件）
+                    if modular_final_exists and status.get("modular_status") != "success":
                         status["modular_status"] = "success"
                         status["modular_output"] = str(modular_output)
                     
@@ -312,9 +320,9 @@ def process_video_background(task_id: str, dance_path: Path, bgm_path: Path, out
                     if modular_done and v2_done:
                         status["message"] = "处理完成"
                     elif modular_done:
-                        status["message"] = "modular版本处理中，V2版本已完成"
+                        status["message"] = "modular版本已完成，V2版本处理中"
                     elif v2_done:
-                        status["message"] = "V2版本处理中，modular版本已完成"
+                        status["message"] = "V2版本已完成，modular版本处理中"
                     else:
                         status["message"] = "正在处理，请稍候..."
                     
@@ -332,64 +340,119 @@ def process_video_background(task_id: str, dance_path: Path, bgm_path: Path, out
         if perf_logger:
             perf_logger.log_step("等待处理线程完成")
         
-        # 最终检查输出文件
-        modular_exists = modular_output.exists() and modular_output.stat().st_size > 0
+        # 最终检查输出文件（包括中间文件）
+        modular_final_exists = modular_output.exists() and modular_output.stat().st_size > 0
+        modular_intermediate_exists = modular_intermediate.exists() and modular_intermediate.stat().st_size > 0
+        modular_exists = modular_final_exists or modular_intermediate_exists
         v2_exists = v2_output.exists() and v2_output.stat().st_size > 0
         
         if perf_logger:
-            if modular_exists:
-                perf_logger.log_file_operation("检查输出文件", str(modular_output),
+            if modular_final_exists:
+                perf_logger.log_file_operation("检查输出文件（最终）", str(modular_output),
                                              modular_output.stat().st_size)
+            elif modular_intermediate_exists:
+                perf_logger.log_file_operation("检查输出文件（中间）", str(modular_intermediate),
+                                             modular_intermediate.stat().st_size)
             if v2_exists:
                 perf_logger.log_file_operation("检查输出文件", str(v2_output),
                                              v2_output.stat().st_size)
         
         # 更新最终状态
-        if modular_exists or v2_exists:
-            result = {
-                "status": "success",
-                "message": "处理完成" if (modular_exists and v2_exists) else "部分处理完成",
-                "completed_at": datetime.now().isoformat()
-            }
-            
-            if modular_exists:
-                result["modular_output"] = str(modular_output)
-                result["modular_status"] = "success"
-            else:
-                result["modular_status"] = "failed"
-            
-            if v2_exists:
-                result["v2_output"] = str(v2_output)
-                result["v2_status"] = "success"
-            else:
-                result["v2_status"] = "failed"
-            
-            with task_lock:
-                task_status[task_id].update(result)
-            save_task_status()  # 保存到文件
-            
-            if perf_logger:
-                perf_logger.finish(success=True)
-        else:
-            # 记录失败原因
-            error_msg = f"并行处理器返回失败，task_id: {task_id}"
-            print(f"ERROR: {error_msg}")
-            print(f"ERROR: 输出目录: {output_dir}")
-            print(f"ERROR: 输出目录内容: {list(output_dir.glob('*'))}")
-            
-            with task_lock:
-                task_status[task_id] = {
-                    "status": "failed",
-                    "error": "处理失败",
-                    "message": "处理失败",
-                    "completed_at": datetime.now().isoformat(),
-                    "modular_status": "failed",
-                    "v2_status": "failed"
+        # 注意：modular版本必须输出最终文件，不接受中间文件
+        # 优先检查文件是否存在，即使处理过程中有异常，只要文件生成了就认为成功
+        try:
+            if modular_final_exists or v2_exists:
+                result = {
+                    "status": "success",
+                    "message": "处理完成" if (modular_final_exists and v2_exists) else "部分处理完成",
+                    "completed_at": datetime.now().isoformat()
                 }
-            save_task_status()  # 保存到文件
+                
+                if modular_final_exists:
+                    result["modular_output"] = str(modular_output)
+                    result["modular_status"] = "success"
+                else:
+                    # 如果只有中间文件，认为失败
+                    if modular_intermediate_exists:
+                        print(f"ERROR: Modular版本只生成了中间文件，未生成最终输出文件")
+                        print(f"ERROR: 中间文件: {modular_intermediate}")
+                        print(f"ERROR: 这表示模块2（裁剪模块）失败")
+                    result["modular_status"] = "failed"
+                    if modular_intermediate_exists:
+                        result["modular_error"] = "模块2失败，只生成了中间文件，未生成最终输出"
+                
+                if v2_exists:
+                    result["v2_output"] = str(v2_output)
+                    result["v2_status"] = "success"
+                else:
+                    result["v2_status"] = "failed"
+                
+                with task_lock:
+                    task_status[task_id].update(result)
+                save_task_status()  # 保存到文件
+                
+                if perf_logger:
+                    perf_logger.finish(success=True)
+            else:
+                # 记录失败原因
+                error_msg = f"并行处理器返回失败，task_id: {task_id}"
+                print(f"ERROR: {error_msg}")
+                print(f"ERROR: 输出目录: {output_dir}")
+                print(f"ERROR: 输出目录内容: {list(output_dir.glob('*'))}")
+                
+                with task_lock:
+                    task_status[task_id] = {
+                        "status": "failed",
+                        "error": "处理失败",
+                        "message": "处理失败",
+                        "completed_at": datetime.now().isoformat(),
+                        "modular_status": "failed",
+                        "v2_status": "failed"
+                    }
+                save_task_status()  # 保存到文件
+                
+                if perf_logger:
+                    perf_logger.finish(success=False, error_msg=error_msg)
+        except Exception as status_error:
+            # 即使更新状态时出错，也要检查文件是否存在
+            print(f"WARNING: 更新状态时出错: {status_error}")
+            print(f"WARNING: 但继续检查输出文件...")
             
-            if perf_logger:
-                perf_logger.finish(success=False, error_msg=error_msg)
+            # 重新检查文件（可能文件已经生成）
+            try:
+                modular_final_exists = modular_output.exists() and modular_output.stat().st_size > 0
+                v2_exists = v2_output.exists() and v2_output.stat().st_size > 0
+                
+                if modular_final_exists or v2_exists:
+                    # 文件已生成，应该标记为成功
+                    result = {
+                        "status": "success",
+                        "message": "处理完成" if (modular_final_exists and v2_exists) else "部分处理完成",
+                        "completed_at": datetime.now().isoformat()
+                    }
+                    
+                    if modular_final_exists:
+                        result["modular_output"] = str(modular_output)
+                        result["modular_status"] = "success"
+                    else:
+                        result["modular_status"] = "failed"
+                    
+                    if v2_exists:
+                        result["v2_output"] = str(v2_output)
+                        result["v2_status"] = "success"
+                    else:
+                        result["v2_status"] = "failed"
+                    
+                    with task_lock:
+                        task_status[task_id].update(result)
+                    save_task_status()
+                    print(f"INFO: 尽管更新状态时出错，但文件已生成，已标记为成功")
+                else:
+                    # 文件未生成，标记为失败
+                    raise status_error
+            except Exception:
+                # 如果重新检查也失败，抛出原始异常
+                raise status_error
     
     except ImportError as e:
         error_msg = f"导入并行处理器失败: {str(e)}"
@@ -412,17 +475,70 @@ def process_video_background(task_id: str, dance_path: Path, bgm_path: Path, out
         error_msg = f"处理异常: {str(e)}"
         print(f"ERROR: {error_msg}")
         print(f"ERROR: {error_trace}")
-        if perf_logger:
-            perf_logger.log_error(error_msg, "EXCEPTION")
-            perf_logger.finish(success=False, error_msg=error_msg)
-        with task_lock:
-            task_status[task_id] = {
-                "status": "failed",
-                "error": "处理失败",
-                "message": "服务器内部错误",
-                "completed_at": datetime.now().isoformat()
-            }
-        save_task_status()  # 保存到文件
+        
+        # 即使有异常，也要检查文件是否已经生成
+        # 如果文件已生成，应该标记为成功
+        try:
+            modular_output = output_dir / f"{task_id}_modular.mp4"
+            v2_output = output_dir / f"{task_id}_v2.mp4"
+            
+            modular_final_exists = modular_output.exists() and modular_output.stat().st_size > 0
+            v2_exists = v2_output.exists() and v2_output.stat().st_size > 0
+            
+            if modular_final_exists or v2_exists:
+                # 文件已生成，应该标记为成功
+                print(f"INFO: 尽管处理过程中有异常，但输出文件已生成，标记为成功")
+                result = {
+                    "status": "success",
+                    "message": "处理完成" if (modular_final_exists and v2_exists) else "部分处理完成",
+                    "completed_at": datetime.now().isoformat()
+                }
+                
+                if modular_final_exists:
+                    result["modular_output"] = str(modular_output)
+                    result["modular_status"] = "success"
+                else:
+                    result["modular_status"] = "failed"
+                
+                if v2_exists:
+                    result["v2_output"] = str(v2_output)
+                    result["v2_status"] = "success"
+                else:
+                    result["v2_status"] = "failed"
+                
+                with task_lock:
+                    task_status[task_id] = result
+                save_task_status()
+                
+                if perf_logger:
+                    perf_logger.finish(success=True)
+            else:
+                # 文件未生成，标记为失败
+                if perf_logger:
+                    perf_logger.log_error(error_msg, "EXCEPTION")
+                    perf_logger.finish(success=False, error_msg=error_msg)
+                with task_lock:
+                    task_status[task_id] = {
+                        "status": "failed",
+                        "error": "处理失败",
+                        "message": "服务器内部错误",
+                        "completed_at": datetime.now().isoformat()
+                    }
+                save_task_status()  # 保存到文件
+        except Exception as check_error:
+            # 如果检查文件时也出错，记录原始错误
+            print(f"ERROR: 检查输出文件时也出错: {check_error}")
+            if perf_logger:
+                perf_logger.log_error(error_msg, "EXCEPTION")
+                perf_logger.finish(success=False, error_msg=error_msg)
+            with task_lock:
+                task_status[task_id] = {
+                    "status": "failed",
+                    "error": "处理失败",
+                    "message": "服务器内部错误",
+                    "completed_at": datetime.now().isoformat()
+                }
+            save_task_status()  # 保存到文件
 
 
 @app.post("/api/process")
@@ -556,15 +672,22 @@ async def download_result(task_id: str, version: Optional[str] = None):
         raise HTTPException(status_code=404, detail="任务不存在")
     
     modular_output = output_dir / f"{task_id}_modular.mp4"
+    modular_intermediate = output_dir / f"{task_id}_modular_module1_aligned.mp4"
     v2_output = output_dir / f"{task_id}_v2.mp4"
     
-    # 根据version参数选择文件
+    # 根据version参数选择文件（优先使用最终文件，如果没有则使用中间文件）
     if version == "v2" and v2_output.exists():
         output_file = v2_output
         filename = f"beatsync_{task_id}_v2.mp4"
-    elif version == "modular" and modular_output.exists():
-        output_file = modular_output
-        filename = f"beatsync_{task_id}_modular.mp4"
+    elif version == "modular":
+        if modular_output.exists():
+            output_file = modular_output
+            filename = f"beatsync_{task_id}_modular.mp4"
+        elif modular_intermediate.exists():
+            output_file = modular_intermediate
+            filename = f"beatsync_{task_id}_modular_intermediate.mp4"
+        else:
+            raise HTTPException(status_code=404, detail="Modular版本输出文件不存在")
     elif modular_output.exists():
         # 默认返回modular版本
         output_file = modular_output
@@ -575,10 +698,15 @@ async def download_result(task_id: str, version: Optional[str] = None):
     else:
         raise HTTPException(status_code=404, detail="输出文件不存在")
     
+    # 使用流式响应，支持断点续传，提高下载速度
     return FileResponse(
         str(output_file),
         media_type='video/mp4',
-        filename=filename
+        filename=filename,
+        headers={
+            "Accept-Ranges": "bytes",  # 支持断点续传
+            "Content-Disposition": f'attachment; filename="{filename}"'  # 确保浏览器下载而不是播放
+        }
     )
 
 

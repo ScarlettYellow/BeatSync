@@ -1,14 +1,37 @@
 // API基础URL（根据环境自动选择）
-// 开发环境：使用localhost
+// 开发环境：使用localhost或局域网IP
 // 生产环境：使用Render后端URL（需要替换为实际URL）
 const API_BASE_URL = (() => {
-    // 如果是本地开发环境
-    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-        return 'http://localhost:8000';
+    const hostname = window.location.hostname;
+    
+    // 如果是本地开发环境（localhost或127.0.0.1）
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+        const backendUrl = 'http://localhost:8000';
+        console.log('🔵 本地开发环境检测（电脑）');
+        console.log('   访问地址:', window.location.href);
+        console.log('   后端URL:', backendUrl);
+        return backendUrl;
     }
+    
+    // 如果是局域网IP（手机访问）
+    // 匹配 192.168.x.x, 10.x.x.x, 172.16-31.x.x 等私有IP
+    const privateIpPattern = /^(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[01])\.)/;
+    if (privateIpPattern.test(hostname)) {
+        const backendUrl = `http://${hostname}:8000`;
+        console.log('📱 本地开发环境检测（手机/局域网）');
+        console.log('   访问地址:', window.location.href);
+        console.log('   后端URL:', backendUrl);
+        return backendUrl;
+    }
+    
     // 生产环境：从环境变量或配置中获取
-    // TODO: 替换为实际的Render后端URL，例如：'https://beatsync-backend.onrender.com'
-    return window.API_BASE_URL || 'https://beatsync-backend-asha.onrender.com';
+    // 注意：部署时需要替换为实际的Render后端URL
+    // 例如：'https://beatsync-backend-xxx.onrender.com'
+    const backendUrl = window.API_BASE_URL || 'https://beatsync-backend-asha.onrender.com';
+    console.log('🟢 生产环境检测');
+    console.log('   访问地址:', window.location.href);
+    console.log('   后端URL:', backendUrl);
+    return backendUrl;
 })();
 
 // 状态管理
@@ -69,11 +92,11 @@ function resetState() {
     // 重置下载按钮状态
     downloadModularBtn.disabled = true;
     downloadModularBtn.querySelector('.btn-status').textContent = '⏳';
-    downloadModularBtn.querySelector('.btn-text').textContent = '下载Modular版本';
+    downloadModularBtn.querySelector('.btn-text').textContent = '下载Modular算法结果';
     downloadModularBtn.onclick = null;
     downloadV2Btn.disabled = true;
     downloadV2Btn.querySelector('.btn-status').textContent = '⏳';
-    downloadV2Btn.querySelector('.btn-text').textContent = '下载V2版本';
+    downloadV2Btn.querySelector('.btn-text').textContent = '下载V2算法结果';
     downloadV2Btn.onclick = null;
     
     // 重置处理按钮
@@ -254,6 +277,14 @@ async function processVideo() {
         const result = await response.json();
         const taskId = result.task_id;
         
+        // 验证task_id是否存在
+        if (!taskId) {
+            throw new Error('任务提交失败：未收到任务ID');
+        }
+        
+        console.log('✅ 任务提交成功，任务ID:', taskId);
+        console.log('任务状态:', result);
+        
         // 更新按钮状态
         processBtn.textContent = '处理中...';
         updateStatus('任务已提交，正在处理...', 'processing');
@@ -285,7 +316,16 @@ async function pollTaskStatus(taskId) {
             
             if (!response.ok) {
                 if (response.status === 404) {
-                    updateStatus('任务不存在', 'error');
+                    let errorDetail = '任务不存在';
+                    try {
+                        const error = await response.json();
+                        errorDetail = error.detail || error.message || '任务不存在';
+                    } catch (e) {
+                        // 忽略JSON解析错误
+                    }
+                    console.error('❌ 任务不存在:', errorDetail);
+                    console.error('任务ID:', taskId);
+                    updateStatus(`任务不存在: ${errorDetail}`, 'error');
                     clearInterval(pollInterval);
                     processBtn.disabled = false;
                     processBtn.textContent = '开始处理';
@@ -315,8 +355,21 @@ async function pollTaskStatus(taskId) {
                 // 处理失败
                 clearInterval(pollInterval);
                 const errorMsg = result.error || result.message || '处理失败';
-                updateStatus(`处理失败: ${errorMsg}`, 'error');
+                // 显示详细错误信息（如果可用）
+                let displayMsg = `处理失败: ${errorMsg}`;
+                if (result.modular_status === 'failed' && result.v2_status === 'failed') {
+                    displayMsg += ' (两个版本都处理失败)';
+                } else if (result.modular_status === 'failed') {
+                    displayMsg += ' (Modular版本失败)';
+                } else if (result.v2_status === 'failed') {
+                    displayMsg += ' (V2版本失败)';
+                }
+                updateStatus(displayMsg, 'error');
                 console.error('Process failed:', result);
+                // 在控制台显示完整错误信息，方便调试
+                if (result.error) {
+                    console.error('Error details:', result.error);
+                }
                 processBtn.disabled = false;
                 processBtn.textContent = '开始处理';
             } else if (result.status === 'processing' || result.status === 'pending') {
@@ -363,6 +416,18 @@ async function pollTaskStatus(taskId) {
 function updateStatus(message, type = '') {
     statusText.textContent = `处理状态: ${message}`;
     statusText.className = 'status-text';
+    // 根据类型设置样式
+    if (type === 'success') {
+        statusText.style.color = '#4CAF50';
+    } else if (type === 'error') {
+        statusText.style.color = '#f44336';
+    } else if (type === 'info') {
+        statusText.style.color = '#2196F3';
+    } else if (type === 'processing') {
+        statusText.style.color = '#FF9800';
+    } else {
+        statusText.style.color = '#333333';
+    }
     if (type) {
         statusText.classList.add(type);
     }
@@ -377,7 +442,7 @@ function updateDownloadButtons(result) {
     if (modularStatus === 'success' && result.modular_output) {
         downloadModularBtn.disabled = false;
         downloadModularBtn.querySelector('.btn-status').textContent = '✅';
-        downloadModularBtn.querySelector('.btn-text').textContent = '下载Modular版本';
+        downloadModularBtn.querySelector('.btn-text').textContent = '下载Modular算法结果';
         downloadModularBtn.onclick = () => {
             const url = `${API_BASE_URL}/api/download/${result.task_id}?version=modular`;
             downloadFile(url, 'modular.mp4');
@@ -398,7 +463,7 @@ function updateDownloadButtons(result) {
     if (v2Status === 'success' && result.v2_output) {
         downloadV2Btn.disabled = false;
         downloadV2Btn.querySelector('.btn-status').textContent = '✅';
-        downloadV2Btn.querySelector('.btn-text').textContent = '下载V2版本';
+        downloadV2Btn.querySelector('.btn-text').textContent = '下载V2算法结果';
         downloadV2Btn.onclick = () => {
             const url = `${API_BASE_URL}/api/download/${result.task_id}?version=v2`;
             downloadFile(url, 'v2.mp4');
@@ -416,28 +481,115 @@ function updateDownloadButtons(result) {
     }
 }
 
-// 下载单个文件
+// 下载单个文件（优先保存到相册）
 async function downloadFile(url, filename) {
     try {
-        const response = await fetch(url);
-        if (!response.ok) {
-            throw new Error(`下载失败: ${response.statusText}`);
+        // 检测是否为移动设备
+        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+        const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+        
+        // 对于移动设备，优先使用Web Share API（可以直接保存到相册）
+        // 这是最接近"默认保存到相册"的方式，用户只需在分享菜单中选择"存储视频"
+        if (isMobile && navigator.share) {
+            try {
+                console.log('使用Web Share API（可保存到相册）...');
+                updateStatus('正在准备视频，请稍候...', 'processing');
+                
+                // 先获取文件
+                const response = await fetch(url);
+                if (!response.ok) {
+                    throw new Error(`下载失败: ${response.statusText}`);
+                }
+                
+                const blob = await response.blob();
+                const file = new File([blob], filename, { type: 'video/mp4' });
+                
+                // 使用Web Share API分享文件
+                // 在iOS上，"存储视频"通常是分享菜单中的第一个选项
+                if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                    updateStatus('请选择"存储视频"保存到相册', 'info');
+                    await navigator.share({
+                        files: [file],
+                        title: '保存视频到相册',
+                        text: '请选择"存储视频"选项保存到相册'
+                    });
+                    console.log('✅ 已通过Web Share API分享');
+                    updateStatus('视频已保存到相册', 'success');
+                    return true;
+                } else {
+                    // 如果不支持分享文件，回退到直接下载
+                    console.log('Web Share API不支持文件分享，使用直接下载...');
+                }
+            } catch (shareError) {
+                // 如果用户取消分享，不报错
+                if (shareError.name === 'AbortError') {
+                    console.log('用户取消了分享');
+                    updateStatus('下载已取消', '');
+                    return false;
+                }
+                console.log('Web Share API失败，使用直接下载:', shareError);
+            }
         }
         
-        const blob = await response.blob();
-        const downloadUrl = window.URL.createObjectURL(blob);
+        // 直接下载方式（适用于桌面浏览器和移动浏览器）
+        // 注意：由于浏览器安全限制，无法直接保存到相册，需要用户手动操作
+        updateStatus('正在下载...', 'processing');
         const a = document.createElement('a');
-        a.href = downloadUrl;
+        a.href = url;
         a.download = filename;
+        a.style.display = 'none';
         document.body.appendChild(a);
         a.click();
-        document.body.removeChild(a);
-        window.URL.revokeObjectURL(downloadUrl);
+        
+        // 延迟清理，确保下载开始
+        setTimeout(() => {
+            document.body.removeChild(a);
+        }, 100);
+        
+        console.log('开始下载:', filename);
+        
+        // 如果是移动设备，提示用户如何保存到相册
+        if (isMobile) {
+            setTimeout(() => {
+                if (isIOS) {
+                    updateStatus('下载完成。请在"文件"应用中长按视频，选择"存储视频"保存到相册', 'info');
+                } else {
+                    updateStatus('下载完成。请在文件管理器中找到视频，移动到相册文件夹', 'info');
+                }
+            }, 1000);
+        } else {
+            updateStatus('下载完成', 'success');
+        }
         
         return true;
     } catch (error) {
         console.error(`下载 ${filename} 失败:`, error);
-        return false;
+        // 如果直接下载失败，尝试使用fetch+blob方式（备用方案）
+        try {
+            console.log('直接下载失败，尝试使用blob方式...');
+            updateStatus('正在下载...', 'processing');
+            const response = await fetch(url);
+            if (!response.ok) {
+                throw new Error(`下载失败: ${response.statusText}`);
+            }
+            
+            const blob = await response.blob();
+            const downloadUrl = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = downloadUrl;
+            a.download = filename;
+            a.style.display = 'none';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(downloadUrl);
+            updateStatus('下载完成', 'success');
+            return true;
+        } catch (blobError) {
+            console.error('Blob download error:', blobError);
+            updateStatus(`下载失败: ${blobError.message}`, 'error');
+            return false;
+        }
     }
 }
 

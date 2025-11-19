@@ -112,6 +112,7 @@ def process_with_modular(dance_video: str, bgm_video: str, output_video: str) ->
     """使用modular版本处理"""
     try:
         print("  使用modular版本处理...")
+        print(f"  [时间] 开始时间: {datetime.now().strftime('%H:%M:%S')}")
         # 获取项目根目录（脚本所在目录的父目录）
         script_dir = Path(__file__).parent.absolute()
         project_root = script_dir
@@ -134,16 +135,86 @@ def process_with_modular(dance_video: str, bgm_video: str, output_video: str) ->
             "--lib-threads", "1"
         ]
         
+        print(f"  [命令] 执行命令: {' '.join(cmd[:3])} ... (参数已省略)")
+        print(f"  [状态] 开始执行subprocess...")
+        
         # 设置工作目录为项目根目录
         # 增加超时时间到600秒（10分钟），适应Render免费层的性能限制
+        start_time = datetime.now()
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=600, cwd=str(project_root))
+        end_time = datetime.now()
+        elapsed = (end_time - start_time).total_seconds()
+        print(f"  [时间] 完成时间: {end_time.strftime('%H:%M:%S')}, 耗时: {elapsed:.1f}秒")
+        print(f"  [结果] 返回码: {result.returncode}")
+        if result.stdout:
+            print(f"  [输出] stdout长度: {len(result.stdout)}字符")
+        if result.stderr:
+            print(f"  [错误] stderr长度: {len(result.stderr)}字符")
+            # 如果失败，打印stderr内容（前500字符）
+            if result.returncode != 0:
+                print(f"  [错误详情] stderr内容:")
+                stderr_lines = result.stderr.strip().split('\n')
+                for i, line in enumerate(stderr_lines[:10]):  # 只显示前10行
+                    print(f"    {line}")
+                if len(stderr_lines) > 10:
+                    print(f"    ... (还有 {len(stderr_lines) - 10} 行)")
         info = extract_alignment_info(result.stdout, "modular版本")
         info['return_code'] = result.returncode
         info['stderr'] = result.stderr
         
+        # 检查输出文件（modular版本必须输出最终文件，不接受中间文件）
+        output_is_intermediate = '_module1_aligned' in output_video
+        
+        # 如果失败，提取错误信息
+        if result.returncode != 0:
+            # 优先从stderr提取错误信息
+            if result.stderr:
+                # 提取关键错误信息（前500字符）
+                error_lines = result.stderr.strip().split('\n')
+                # 查找包含"Error"、"error"、"失败"、"Exception"的行
+                error_msg = None
+                for line in error_lines:
+                    if any(keyword in line.lower() for keyword in ['error', '失败', 'exception', 'traceback']):
+                        error_msg = line.strip()
+                        break
+                if not error_msg and error_lines:
+                    # 如果没有找到关键词，使用最后一行
+                    error_msg = error_lines[-1].strip()
+                if error_msg:
+                    info['error'] = error_msg[:200]  # 限制长度
+                else:
+                    info['error'] = f"返回码: {result.returncode}, stderr: {result.stderr[:200]}"
+            else:
+                info['error'] = f"返回码: {result.returncode}，无错误输出"
+        
         # 增强成功判断：如果返回码为0且输出文件存在，则认为成功
+        # 注意：modular版本必须输出最终文件，不接受中间文件
         if result.returncode == 0 and os.path.exists(output_video) and os.path.getsize(output_video) > 0:
-            info['success'] = True
+            # 检查是否是中间文件（modular版本可能生成中间文件）
+            if output_is_intermediate:
+                # 这是中间文件，不是最终输出，应该认为失败
+                info['success'] = False
+                if not info.get('error'):
+                    info['error'] = '只生成了中间文件，未生成最终输出文件（模块2失败）'
+                print(f"  ⚠️  警告: 检测到中间文件，但未找到最终输出文件")
+                print(f"  ⚠️  中间文件: {output_video}")
+                print(f"  ⚠️  这表示模块2（裁剪模块）失败")
+            else:
+                info['success'] = True
+        elif result.returncode != 0:
+            # 如果返回码不是0，检查是否有中间文件
+            intermediate_file = output_video.replace('.mp4', '_module1_aligned.mp4')
+            if os.path.exists(intermediate_file) and os.path.getsize(intermediate_file) > 0:
+                if not info.get('error'):
+                    info['error'] = f'模块2失败，只生成了中间文件（返回码: {result.returncode}）'
+                print(f"  ⚠️  警告: 返回码{result.returncode}，但检测到中间文件")
+                print(f"  ⚠️  中间文件: {intermediate_file}")
+                print(f"  ⚠️  这表示模块2（裁剪模块）失败")
+            # 即使extract_alignment_info认为成功，如果返回码不是0，也应该认为失败
+            if info.get('success') and result.returncode != 0:
+                info['success'] = False
+                if not info.get('error'):
+                    info['error'] = f'返回码: {result.returncode}，处理失败'
         
         return info
         
@@ -156,6 +227,7 @@ def process_with_v2(dance_video: str, bgm_video: str, output_video: str) -> dict
     """使用V2版本处理"""
     try:
         print("  使用V2版本处理...")
+        print(f"  [时间] 开始时间: {datetime.now().strftime('%H:%M:%S')}")
         # 获取项目根目录（脚本所在目录的父目录）
         script_dir = Path(__file__).parent.absolute()
         project_root = script_dir
@@ -178,12 +250,54 @@ def process_with_v2(dance_video: str, bgm_video: str, output_video: str) -> dict
             "--lib-threads", "1"
         ]
         
+        print(f"  [命令] 执行命令: {' '.join(cmd[:3])} ... (参数已省略)")
+        print(f"  [状态] 开始执行subprocess...")
+        
         # 设置工作目录为项目根目录
         # 增加超时时间到600秒（10分钟），适应Render免费层的性能限制
+        start_time = datetime.now()
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=600, cwd=str(project_root))
+        end_time = datetime.now()
+        elapsed = (end_time - start_time).total_seconds()
+        print(f"  [时间] 完成时间: {end_time.strftime('%H:%M:%S')}, 耗时: {elapsed:.1f}秒")
+        print(f"  [结果] 返回码: {result.returncode}")
+        if result.stdout:
+            print(f"  [输出] stdout长度: {len(result.stdout)}字符")
+        if result.stderr:
+            print(f"  [错误] stderr长度: {len(result.stderr)}字符")
+            # 如果失败，打印stderr内容（前500字符）
+            if result.returncode != 0:
+                print(f"  [错误详情] stderr内容:")
+                stderr_lines = result.stderr.strip().split('\n')
+                for i, line in enumerate(stderr_lines[:10]):  # 只显示前10行
+                    print(f"    {line}")
+                if len(stderr_lines) > 10:
+                    print(f"    ... (还有 {len(stderr_lines) - 10} 行)")
         info = extract_alignment_info(result.stdout, "V2版本")
         info['return_code'] = result.returncode
         info['stderr'] = result.stderr
+        
+        # 如果失败，提取错误信息
+        if result.returncode != 0:
+            # 优先从stderr提取错误信息
+            if result.stderr:
+                # 提取关键错误信息（前500字符）
+                error_lines = result.stderr.strip().split('\n')
+                # 查找包含"Error"、"error"、"失败"、"Exception"的行
+                error_msg = None
+                for line in error_lines:
+                    if any(keyword in line.lower() for keyword in ['error', '失败', 'exception', 'traceback']):
+                        error_msg = line.strip()
+                        break
+                if not error_msg and error_lines:
+                    # 如果没有找到关键词，使用最后一行
+                    error_msg = error_lines[-1].strip()
+                if error_msg:
+                    info['error'] = error_msg[:200]  # 限制长度
+                else:
+                    info['error'] = f"返回码: {result.returncode}, stderr: {result.stderr[:200]}"
+            else:
+                info['error'] = f"返回码: {result.returncode}，无错误输出"
         
         # 增强成功判断：如果返回码为0且输出文件存在，则认为成功
         if result.returncode == 0 and os.path.exists(output_video) and os.path.getsize(output_video) > 0:
