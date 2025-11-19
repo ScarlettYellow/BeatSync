@@ -188,8 +188,9 @@ h1 {
     display: flex;
     align-items: center;
     gap: 8px;
-    min-width: 180px;
+    width: 220px;
     justify-content: center;
+    box-sizing: border-box;
 }
 
 .download-btn:hover:not(:disabled) {
