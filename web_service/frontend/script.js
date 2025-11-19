@@ -137,17 +137,38 @@ async function uploadFile(file, fileType) {
     try {
         updateStatus(`正在上传${fileType === 'dance' ? '原始视频' : '音源视频'}...`, 'processing');
         
+        console.log('开始上传文件:', {
+            fileName: file.name,
+            fileSize: file.size,
+            fileType: fileType,
+            apiUrl: `${API_BASE_URL}/api/upload`
+        });
+        
         const response = await fetch(`${API_BASE_URL}/api/upload`, {
             method: 'POST',
             body: formData
+            // 注意：不要设置Content-Type，让浏览器自动设置multipart/form-data边界
         });
         
+        console.log('上传响应状态:', response.status, response.statusText);
+        
         if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.detail || '上传失败');
+            let errorDetail = '上传失败';
+            try {
+                const error = await response.json();
+                errorDetail = error.detail || error.message || '上传失败';
+                console.error('上传错误详情:', error);
+            } catch (e) {
+                // 如果响应不是JSON，尝试读取文本
+                const errorText = await response.text();
+                console.error('上传错误响应:', errorText);
+                errorDetail = errorText || `HTTP ${response.status}: ${response.statusText}`;
+            }
+            throw new Error(errorDetail);
         }
         
         const result = await response.json();
+        console.log('上传成功，响应:', result);
         
         // 保存文件ID
         if (fileType === 'dance') {
@@ -164,8 +185,15 @@ async function uploadFile(file, fileType) {
         updateProcessButton();
         
     } catch (error) {
-        updateStatus(`上传失败: ${error.message}`, 'error');
-        console.error('Upload error:', error);
+        console.error('上传异常:', error);
+        console.error('错误堆栈:', error.stack);
+        const errorMessage = error.message || '上传失败，请检查网络连接或后端服务';
+        updateStatus(`上传失败: ${errorMessage}`, 'error');
+        
+        // 如果是网络错误，提供更详细的提示
+        if (error.name === 'TypeError' && error.message.includes('fetch')) {
+            updateStatus('上传失败: 无法连接到后端服务，请确认后端服务已启动', 'error');
+        }
     }
 }
 
