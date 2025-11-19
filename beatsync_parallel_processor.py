@@ -110,9 +110,11 @@ def extract_alignment_info(output_text, program_name):
 
 def process_with_modular(dance_video: str, bgm_video: str, output_video: str) -> dict:
     """使用modular版本处理"""
+    start_time = None
     try:
         print("  使用modular版本处理...")
-        print(f"  [时间] 开始时间: {datetime.now().strftime('%H:%M:%S')}")
+        start_time = datetime.now()
+        print(f"  [时间] 开始时间: {start_time.strftime('%H:%M:%S')}")
         # 获取项目根目录（脚本所在目录的父目录）
         script_dir = Path(__file__).parent.absolute()
         project_root = script_dir
@@ -139,9 +141,9 @@ def process_with_modular(dance_video: str, bgm_video: str, output_video: str) ->
         print(f"  [状态] 开始执行subprocess...")
         
         # 设置工作目录为项目根目录
-        # 增加超时时间到600秒（10分钟），适应Render免费层的性能限制
+        # 增加超时时间到1200秒（20分钟），适应Render免费层的性能限制
         start_time = datetime.now()
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=600, cwd=str(project_root))
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=1200, cwd=str(project_root))
         end_time = datetime.now()
         elapsed = (end_time - start_time).total_seconds()
         print(f"  [时间] 完成时间: {end_time.strftime('%H:%M:%S')}, 耗时: {elapsed:.1f}秒")
@@ -218,16 +220,20 @@ def process_with_modular(dance_video: str, bgm_video: str, output_video: str) ->
         
         return info
         
-    except subprocess.TimeoutExpired:
-        return {'program': 'modular版本', 'success': False, 'error': '超时'}
+    except subprocess.TimeoutExpired as e:
+        elapsed = (datetime.now() - start_time).total_seconds() if start_time else 0
+        print(f"  [错误] modular版本处理超时（已运行{elapsed:.1f}秒）")
+        return {'program': 'modular版本', 'success': False, 'error': f'超时（已运行{elapsed:.1f}秒，限制1200秒）'}
     except Exception as e:
         return {'program': 'modular版本', 'success': False, 'error': str(e)}
 
 def process_with_v2(dance_video: str, bgm_video: str, output_video: str) -> dict:
     """使用V2版本处理"""
+    start_time = None
     try:
         print("  使用V2版本处理...")
-        print(f"  [时间] 开始时间: {datetime.now().strftime('%H:%M:%S')}")
+        start_time = datetime.now()
+        print(f"  [时间] 开始时间: {start_time.strftime('%H:%M:%S')}")
         # 获取项目根目录（脚本所在目录的父目录）
         script_dir = Path(__file__).parent.absolute()
         project_root = script_dir
@@ -254,9 +260,9 @@ def process_with_v2(dance_video: str, bgm_video: str, output_video: str) -> dict
         print(f"  [状态] 开始执行subprocess...")
         
         # 设置工作目录为项目根目录
-        # 增加超时时间到600秒（10分钟），适应Render免费层的性能限制
+        # 增加超时时间到1200秒（20分钟），适应Render免费层的性能限制
         start_time = datetime.now()
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=600, cwd=str(project_root))
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=1200, cwd=str(project_root))
         end_time = datetime.now()
         elapsed = (end_time - start_time).total_seconds()
         print(f"  [时间] 完成时间: {end_time.strftime('%H:%M:%S')}, 耗时: {elapsed:.1f}秒")
@@ -305,8 +311,10 @@ def process_with_v2(dance_video: str, bgm_video: str, output_video: str) -> dict
         
         return info
         
-    except subprocess.TimeoutExpired:
-        return {'program': 'V2版本', 'success': False, 'error': '超时'}
+    except subprocess.TimeoutExpired as e:
+        elapsed = (datetime.now() - start_time).total_seconds() if 'start_time' in locals() else 0
+        print(f"  [错误] V2版本处理超时（已运行{elapsed:.1f}秒）")
+        return {'program': 'V2版本', 'success': False, 'error': f'超时（已运行{elapsed:.1f}秒，限制1200秒）'}
     except Exception as e:
         return {'program': 'V2版本', 'success': False, 'error': str(e)}
 
