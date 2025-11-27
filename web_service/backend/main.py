@@ -227,16 +227,19 @@ async def upload_video(
         
         print(f"INFO: 文件保存成功 - file_id: {file_id}, size: {file_size} bytes")
         
-        file_size = os.path.getsize(file_path)
-        
-        return {
+        result = {
             "file_id": file_id,
             "file_type": file_type,
             "filename": file.filename,
             "size": file_size,
             "message": "文件上传成功"
         }
+        print(f"INFO: 返回上传响应: {result}")
+        return result
     except Exception as e:
+        print(f"ERROR: 文件保存失败: {e}")
+        import traceback
+        traceback.print_exc()
         if file_path.exists():
             os.remove(file_path)
         raise HTTPException(
