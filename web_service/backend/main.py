@@ -619,31 +619,48 @@ async def process_video(
         status: 任务状态（pending）
         message: 提示信息
     """
+    print(f"INFO: 收到处理请求 - dance_file_id: {dance_file_id}, bgm_file_id: {bgm_file_id}")
+    
     # 查找文件
     dance_files = list(UPLOAD_DIR.glob(f"{dance_file_id}_dance.*"))
     bgm_files = list(UPLOAD_DIR.glob(f"{bgm_file_id}_bgm.*"))
     
+    print(f"INFO: 找到dance文件: {len(dance_files)} 个")
+    print(f"INFO: 找到bgm文件: {len(bgm_files)} 个")
+    
     if not dance_files:
+        print(f"ERROR: 原始视频文件不存在: {dance_file_id}")
         raise HTTPException(status_code=404, detail="原始视频文件不存在")
     if not bgm_files:
+        print(f"ERROR: 音源视频文件不存在: {bgm_file_id}")
         raise HTTPException(status_code=404, detail="音源视频文件不存在")
     
     dance_path = dance_files[0]
     bgm_path = bgm_files[0]
+    
+    print(f"INFO: dance文件路径: {dance_path}")
+    print(f"INFO: bgm文件路径: {bgm_path}")
     
     # 生成任务ID和输出目录
     task_id = str(uuid.uuid4())
     output_dir = OUTPUT_DIR / task_id
     output_dir.mkdir(parents=True, exist_ok=True)
     
+    print(f"INFO: 生成任务ID: {task_id}")
+    print(f"INFO: 输出目录: {output_dir}")
+    
     # 初始化任务状态
     with task_lock:
         task_status[task_id] = {
             "status": "pending",
             "message": "任务已提交，正在处理...",
-            "created_at": datetime.now().isoformat()
+            "created_at": datetime.now().isoformat(),
+            "modular_status": "processing",
+            "v2_status": "processing"
         }
     save_task_status()  # 保存到文件
+    
+    print(f"INFO: 任务状态已初始化: {task_id}")
     
     # 启动后台处理线程
     thread = threading.Thread(
@@ -653,12 +670,16 @@ async def process_video(
     )
     thread.start()
     
+    print(f"INFO: 后台处理线程已启动: {task_id}")
+    
     # 立即返回任务ID
-    return {
+    result = {
         "task_id": task_id,
         "status": "pending",
         "message": "任务已提交，正在处理..."
     }
+    print(f"INFO: 返回任务响应: {result}")
+    return result
 
 
 @app.get("/api/status/{task_id}")

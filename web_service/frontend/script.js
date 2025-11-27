@@ -286,9 +286,22 @@ async function processVideo() {
         downloadSection.style.display = 'none';
         
         // 提交任务
+        console.log('📤 开始提交任务...');
+        console.log('提交数据:', {
+            dance_file_id: state.danceFileId,
+            bgm_file_id: state.bgmFileId,
+            apiUrl: `${API_BASE_URL}/api/process`
+        });
+        
         const response = await fetch(`${API_BASE_URL}/api/process`, {
             method: 'POST',
             body: formData
+        });
+        
+        console.log('📥 收到响应:', {
+            status: response.status,
+            statusText: response.statusText,
+            ok: response.ok
         });
         
         if (!response.ok) {
@@ -296,17 +309,23 @@ async function processVideo() {
             try {
                 const error = await response.json();
                 errorDetail = error.detail || error.message || error.error || '提交失败';
+                console.error('❌ 响应错误:', error);
             } catch (e) {
+                const errorText = await response.text();
+                console.error('❌ 响应文本:', errorText);
                 errorDetail = `HTTP ${response.status}: ${response.statusText}`;
             }
             throw new Error(errorDetail);
         }
         
         const result = await response.json();
+        console.log('📋 响应内容:', result);
+        
         const taskId = result.task_id;
         
         // 验证task_id是否存在
         if (!taskId) {
+            console.error('❌ 响应中没有task_id:', result);
             throw new Error('任务提交失败：未收到任务ID');
         }
         
