@@ -188,10 +188,13 @@ async def upload_video(
         filename: 文件名
         size: 文件大小（字节）
     """
+    print(f"INFO: 收到上传请求 - file_type: {file_type}, filename: {file.filename if file else 'None'}")
+    
     # 验证文件类型
     allowed_extensions = ['.mp4', '.MP4', '.mov', '.MOV', '.avi', '.AVI', '.mkv', '.MKV']
     file_ext = Path(file.filename).suffix
     if file_ext not in allowed_extensions:
+        print(f"ERROR: 不支持的文件格式: {file_ext}")
         raise HTTPException(
             status_code=400,
             detail=f"不支持的文件格式，支持格式: {', '.join(allowed_extensions)}"
@@ -199,6 +202,7 @@ async def upload_video(
     
     # 验证file_type
     if file_type not in ['dance', 'bgm']:
+        print(f"ERROR: 无效的file_type: {file_type}")
         raise HTTPException(
             status_code=400,
             detail="file_type必须是'dance'或'bgm'"
@@ -208,10 +212,20 @@ async def upload_video(
     file_id = str(uuid.uuid4())
     file_path = UPLOAD_DIR / f"{file_id}_{file_type}{file_ext}"
     
+    print(f"INFO: 开始保存文件 - file_id: {file_id}, path: {file_path}")
+    
     # 保存文件
     try:
+        file_size = 0
         with open(file_path, "wb") as f:
-            shutil.copyfileobj(file.file, f)
+            while True:
+                chunk = await file.read(8192)  # 8KB chunks
+                if not chunk:
+                    break
+                f.write(chunk)
+                file_size += len(chunk)
+        
+        print(f"INFO: 文件保存成功 - file_id: {file_id}, size: {file_size} bytes")
         
         file_size = os.path.getsize(file_path)
         

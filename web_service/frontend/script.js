@@ -144,11 +144,29 @@ async function uploadFile(file, fileType) {
             apiUrl: `${API_BASE_URL}/api/upload`
         });
         
-        const response = await fetch(`${API_BASE_URL}/api/upload`, {
-            method: 'POST',
-            body: formData
-            // 注意：不要设置Content-Type，让浏览器自动设置multipart/form-data边界
-        });
+        // 创建带超时的fetch请求
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 60000); // 60秒超时
+        
+        let response;
+        try {
+            response = await fetch(`${API_BASE_URL}/api/upload`, {
+                method: 'POST',
+                body: formData,
+                signal: controller.signal
+                // 注意：不要设置Content-Type，让浏览器自动设置multipart/form-data边界
+            });
+            clearTimeout(timeoutId);
+        } catch (fetchError) {
+            clearTimeout(timeoutId);
+            if (fetchError.name === 'AbortError') {
+                throw new Error('上传超时：请求超过60秒未响应，请检查网络连接或后端服务');
+            } else if (fetchError.message.includes('Failed to fetch')) {
+                throw new Error('无法连接到后端服务，请确认后端服务已启动（http://localhost:8000）');
+            } else {
+                throw new Error(`上传失败: ${fetchError.message}`);
+            }
+        }
         
         console.log('上传响应状态:', response.status, response.statusText);
         
