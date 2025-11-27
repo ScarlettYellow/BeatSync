@@ -128,6 +128,48 @@ async function handleFileSelect(event, fileType) {
     await uploadFile(file, fileType);
 }
 
+// 检查后端服务是否可用
+async function checkBackendHealth() {
+    const healthUrl = `${API_BASE_URL}/api/health`;
+    const controller = new AbortController();
+    const timeoutMs = 5000; // 5秒超时
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    
+    try {
+        const startTime = Date.now();
+        const response = await fetch(healthUrl, {
+            method: 'GET',
+            signal: controller.signal,
+            // 添加超时提示
+            headers: {
+                'Cache-Control': 'no-cache'
+            }
+        });
+        clearTimeout(timeoutId);
+        const elapsed = Date.now() - startTime;
+        
+        if (response.ok) {
+            console.log(`✅ 后端健康检查成功 (耗时${elapsed}ms)`);
+            return true;
+        } else {
+            console.warn(`⚠️ 后端健康检查返回非200状态: ${response.status}`);
+            return false;
+        }
+    } catch (fetchError) {
+        clearTimeout(timeoutId);
+        // AbortError是预期的超时错误，静默处理
+        if (fetchError.name === 'AbortError') {
+            console.log(`⏱️ 后端健康检查超时（${timeoutMs}ms内无响应）`);
+            return false;
+        }
+        // 其他错误（如网络错误）才记录
+        if (fetchError.message && !fetchError.message.includes('aborted')) {
+            console.warn('⚠️ 后端健康检查失败:', fetchError.message);
+        }
+        return false;
+    }
+}
+
 // 上传文件
 async function uploadFile(file, fileType) {
     const formData = new FormData();
@@ -135,6 +177,21 @@ async function uploadFile(file, fileType) {
     formData.append('file_type', fileType);
     
     try {
+        // 先检查后端服务是否可用
+        updateStatus(`正在检查后端服务...`, 'processing');
+        const backendAvailable = await checkBackendHealth();
+        
+        if (!backendAvailable) {
+            const errorMsg = `后端服务不可用（5秒内无响应）。\n\n` +
+                `请按以下步骤操作：\n` +
+                `1. 打开终端，进入项目目录\n` +
+                `2. 运行命令：cd web_service/backend && ./start_server.sh\n` +
+                `3. 等待后端启动（看到 "Uvicorn running on..." 消息）\n` +
+                `4. 刷新页面重试\n\n` +
+                `或者手动检查：访问 ${API_BASE_URL}/api/health 查看服务状态`;
+            throw new Error(errorMsg);
+        }
+        
         updateStatus(`正在上传${fileType === 'dance' ? '原始视频' : '音源视频'}...`, 'processing');
         
         console.log('开始上传文件:', {
@@ -145,8 +202,11 @@ async function uploadFile(file, fileType) {
         });
         
         // 创建带超时的fetch请求
+        // 根据文件大小动态调整超时时间：小文件(<10MB) 2分钟，大文件(>=10MB) 10分钟
+        const fileSizeMB = file.size / (1024 * 1024);
+        const timeoutMs = fileSizeMB >= 10 ? 600000 : 120000; // 大文件10分钟，小文件2分钟
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 60000); // 60秒超时
+        const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
         
         let response;
         const startTime = Date.now();
@@ -166,9 +226,20 @@ async function uploadFile(file, fileType) {
             const elapsed = Date.now() - startTime;
             console.error(`❌ Fetch错误 (耗时${elapsed}ms):`, fetchError);
             if (fetchError.name === 'AbortError') {
-                throw new Error('上传超时：请求超过60秒未响应，请检查网络连接或后端服务');
+                const timeoutMinutes = Math.floor(timeoutMs / 60000);
+                const errorMsg = `上传超时：请求超过${timeoutMinutes}分钟未响应。可能原因：\n` +
+                    `1. 后端服务未启动（请检查 http://localhost:8000 是否可访问）\n` +
+                    `2. 文件过大，上传时间过长\n` +
+                    `3. 网络连接问题\n\n` +
+                    `请检查后端服务状态或尝试使用较小的文件。`;
+                throw new Error(errorMsg);
             } else if (fetchError.message.includes('Failed to fetch')) {
-                throw new Error('无法连接到后端服务，请确认后端服务已启动（http://localhost:8000）');
+                const errorMsg = `无法连接到后端服务。请确认：\n` +
+                    `1. 后端服务已启动（访问 http://localhost:8000/api/health 检查）\n` +
+                    `2. 后端服务正在运行（检查终端是否有错误信息）\n` +
+                    `3. 防火墙未阻止连接\n\n` +
+                    `启动后端服务：cd web_service/backend && ./start_server.sh`;
+                throw new Error(errorMsg);
             } else {
                 throw new Error(`上传失败: ${fetchError.message}`);
             }
@@ -330,16 +401,49 @@ async function processVideo() {
             apiUrl: `${API_BASE_URL}/api/process`
         });
         
-        const response = await fetch(`${API_BASE_URL}/api/process`, {
-            method: 'POST',
-            body: formData
-        });
+        // 创建带超时的fetch请求（30秒超时）
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30秒超时
         
-        console.log('📥 收到响应:', {
-            status: response.status,
-            statusText: response.statusText,
-            ok: response.ok
-        });
+        let response;
+        const startTime = Date.now();
+        try {
+            response = await fetch(`${API_BASE_URL}/api/process`, {
+                method: 'POST',
+                body: formData,
+                signal: controller.signal
+            });
+            clearTimeout(timeoutId);
+            const elapsed = Date.now() - startTime;
+            console.log(`📥 收到响应 (耗时${elapsed}ms):`, {
+                status: response.status,
+                statusText: response.statusText,
+                ok: response.ok
+            });
+        } catch (fetchError) {
+            clearTimeout(timeoutId);
+            const elapsed = Date.now() - startTime;
+            console.error(`❌ Fetch错误 (耗时${elapsed}ms):`, fetchError);
+            if (fetchError.name === 'AbortError') {
+                throw new Error(
+                    `提交任务超时：请求超过30秒未响应。可能原因：\n` +
+                    `1. 后端服务处理缓慢或卡住\n` +
+                    `2. 后端服务未正确启动\n` +
+                    `3. 网络连接问题\n\n` +
+                    `请检查后端服务状态或查看后端日志。`
+                );
+            } else if (fetchError.message.includes('Failed to fetch')) {
+                throw new Error(
+                    `无法连接到后端服务。请确认：\n` +
+                    `1. 后端服务已启动（访问 ${API_BASE_URL}/api/health 检查）\n` +
+                    `2. 后端服务正在运行（检查终端是否有错误信息）\n` +
+                    `3. 防火墙未阻止连接\n\n` +
+                    `启动后端服务：cd web_service/backend && ./start_server.sh`
+                );
+            } else {
+                throw new Error(`提交任务失败: ${fetchError.message}`);
+            }
+        }
         
         if (!response.ok) {
             let errorDetail = '提交失败';
