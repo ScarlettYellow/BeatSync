@@ -236,17 +236,69 @@ git commit --allow-empty -m "docs: 记录回退原因 - [描述问题]"
 
 ## 部署后版本信息
 
-> **待更新**：部署完成后，在此记录新版本信息
+### 新版本信息（2025-11-27 部署）
 
-### 新版本标签
-- **标签**：待创建
-- **Commit Hash**：待记录
-- **Commit 信息**：待记录
-- **日期**：待记录
+- **最新Commit Hash**：`dabada3bfa8e5b86b6d83a2f76aebb3bb9cc7818`
+- **最新Commit 信息**：`docs: 添加调试流程指南和问题修复总结`
+- **部署日期**：2025-11-27
+- **部署状态**：✅ 已推送到GitHub，自动部署中
+
+### 部署的Commit列表
+
+```
+dabada3 docs: 添加调试流程指南和问题修复总结
+224a40b perf: 优化后端响应速度和稳定性
+a966f10 perf: 优化前端性能和用户体验
+```
 
 ### 部署内容
-- 前端修复：动态超时、健康检查、错误提示优化
-- 后端修复：异步保存、文件查找优化、详细日志
+
+#### 前端优化 (`web_service/frontend/script.js`)
+- ✅ 动态超时时间（小文件2分钟，大文件10分钟）
+- ✅ 上传前健康检查，提前发现问题
+- ✅ 优化错误提示，提供详细解决步骤
+- ✅ 任务提交超时处理（30秒）
+- ✅ 优化健康检查错误处理
+
+#### 后端优化 (`web_service/backend/main.py`)
+- ✅ 异步保存任务状态，响应时间从几秒降到 < 100ms
+- ✅ 优化文件查找逻辑，先尝试直接路径
+- ✅ 使用可重入锁(RLock)，避免死锁风险
+- ✅ 添加详细的时间日志，便于监控和调试
+- ✅ 使用JSONResponse确保响应正确返回
+
+#### 新增文档和工具
+- ✅ 调试流程指南 (`DEBUGGING_EFFICIENCY_GUIDE.md`)
+- ✅ 问题修复总结 (`UPLOAD_AND_PROCESS_TIMEOUT_FIX.md`)
+- ✅ 部署决策分析 (`DEPLOYMENT_DECISION.md`)
+- ✅ 版本备份记录 (`VERSION_BACKUP.md`)
+- ✅ 测试脚本 (`test_process.sh`)
+
+### 部署时间
+
+- **GitHub Pages（前端）**：约 1-2 分钟自动部署
+- **Render（后端）**：约 5-10 分钟自动部署
+
+### 部署验证
+
+部署完成后，请验证：
+
+- [ ] 前端页面正常加载：https://scarlettyellow.github.io/BeatSync/
+- [ ] 后端健康检查正常：https://beatsync-backend-asha.onrender.com/api/health
+- [ ] 文件上传功能正常
+- [ ] 任务提交功能正常（响应时间 < 100ms）
+- [ ] 任务处理功能正常
+- [ ] 下载功能正常
+
+### 如果出现问题
+
+如果部署后出现问题，立即回退到稳定版本：
+
+```bash
+git checkout v1.3.0 && git push origin main --force
+```
+
+回退目标：`v1.3.0` (commit `d98ca60`)
 
 ---
 
