@@ -149,7 +149,9 @@ async function uploadFile(file, fileType) {
         const timeoutId = setTimeout(() => controller.abort(), 60000); // 60秒超时
         
         let response;
+        const startTime = Date.now();
         try {
+            console.log('📤 发送fetch请求...');
             response = await fetch(`${API_BASE_URL}/api/upload`, {
                 method: 'POST',
                 body: formData,
@@ -157,8 +159,12 @@ async function uploadFile(file, fileType) {
                 // 注意：不要设置Content-Type，让浏览器自动设置multipart/form-data边界
             });
             clearTimeout(timeoutId);
+            const elapsed = Date.now() - startTime;
+            console.log(`📥 收到响应 (耗时${elapsed}ms):`, response.status, response.statusText);
         } catch (fetchError) {
             clearTimeout(timeoutId);
+            const elapsed = Date.now() - startTime;
+            console.error(`❌ Fetch错误 (耗时${elapsed}ms):`, fetchError);
             if (fetchError.name === 'AbortError') {
                 throw new Error('上传超时：请求超过60秒未响应，请检查网络连接或后端服务');
             } else if (fetchError.message.includes('Failed to fetch')) {
@@ -168,7 +174,12 @@ async function uploadFile(file, fileType) {
             }
         }
         
-        console.log('上传响应状态:', response.status, response.statusText);
+        console.log('📋 响应详情:', {
+            status: response.status,
+            statusText: response.statusText,
+            ok: response.ok,
+            headers: Object.fromEntries(response.headers.entries())
+        });
         
         if (!response.ok) {
             let errorDetail = '上传失败';
@@ -185,8 +196,16 @@ async function uploadFile(file, fileType) {
             throw new Error(errorDetail);
         }
         
-        const result = await response.json();
-        console.log('上传成功，响应:', result);
+        let result;
+        try {
+            const responseText = await response.text();
+            console.log('📄 响应文本:', responseText);
+            result = JSON.parse(responseText);
+            console.log('✅ 上传成功，解析后的响应:', result);
+        } catch (parseError) {
+            console.error('❌ JSON解析失败:', parseError);
+            throw new Error('服务器响应格式错误');
+        }
         
         // 保存文件ID
         if (fileType === 'dance') {

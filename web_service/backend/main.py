@@ -188,13 +188,15 @@ async def upload_video(
         filename: 文件名
         size: 文件大小（字节）
     """
-    print(f"INFO: 收到上传请求 - file_type: {file_type}, filename: {file.filename if file else 'None'}")
+    import sys
+    print(f"INFO: 收到上传请求 - file_type: {file_type}, filename: {file.filename if file else 'None'}", file=sys.stderr, flush=True)
     
     # 验证文件类型
     allowed_extensions = ['.mp4', '.MP4', '.mov', '.MOV', '.avi', '.AVI', '.mkv', '.MKV']
     file_ext = Path(file.filename).suffix
     if file_ext not in allowed_extensions:
-        print(f"ERROR: 不支持的文件格式: {file_ext}")
+        import sys
+        print(f"ERROR: 不支持的文件格式: {file_ext}", file=sys.stderr, flush=True)
         raise HTTPException(
             status_code=400,
             detail=f"不支持的文件格式，支持格式: {', '.join(allowed_extensions)}"
@@ -202,7 +204,8 @@ async def upload_video(
     
     # 验证file_type
     if file_type not in ['dance', 'bgm']:
-        print(f"ERROR: 无效的file_type: {file_type}")
+        import sys
+        print(f"ERROR: 无效的file_type: {file_type}", file=sys.stderr, flush=True)
         raise HTTPException(
             status_code=400,
             detail="file_type必须是'dance'或'bgm'"
@@ -212,7 +215,8 @@ async def upload_video(
     file_id = str(uuid.uuid4())
     file_path = UPLOAD_DIR / f"{file_id}_{file_type}{file_ext}"
     
-    print(f"INFO: 开始保存文件 - file_id: {file_id}, path: {file_path}")
+    import sys
+    print(f"INFO: 开始保存文件 - file_id: {file_id}, path: {file_path}", file=sys.stderr, flush=True)
     
     # 保存文件
     try:
@@ -225,7 +229,8 @@ async def upload_video(
                 f.write(chunk)
                 file_size += len(chunk)
         
-        print(f"INFO: 文件保存成功 - file_id: {file_id}, size: {file_size} bytes")
+        import sys
+        print(f"INFO: 文件保存成功 - file_id: {file_id}, size: {file_size} bytes", file=sys.stderr, flush=True)
         
         result = {
             "file_id": file_id,
@@ -234,12 +239,13 @@ async def upload_video(
             "size": file_size,
             "message": "文件上传成功"
         }
-        print(f"INFO: 返回上传响应: {result}")
+        print(f"INFO: 返回上传响应: {result}", file=sys.stderr, flush=True)
         return result
     except Exception as e:
-        print(f"ERROR: 文件保存失败: {e}")
+        import sys
         import traceback
-        traceback.print_exc()
+        print(f"ERROR: 文件保存失败: {e}", file=sys.stderr, flush=True)
+        traceback.print_exc(file=sys.stderr)
         if file_path.exists():
             os.remove(file_path)
         raise HTTPException(
