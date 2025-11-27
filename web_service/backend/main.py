@@ -787,16 +787,23 @@ async def health_check():
 # 启动时清理旧文件
 @app.on_event("startup")
 async def startup_event():
-    """启动时执行初始化操作"""
-    # 加载任务状态
+    """启动时执行初始化操作（快速启动，清理操作在后台执行）"""
+    # 加载任务状态（必须同步执行，但通常很快）
     load_task_status()
     
-    # 清理旧任务
-    cleanup_old_tasks()
+    # 清理操作在后台线程执行，不阻塞服务启动
+    def background_cleanup():
+        try:
+            cleanup_old_tasks()
+            cleanup_old_files()
+            cleanup_old_web_outputs()
+        except Exception as e:
+            print(f"WARNING: 后台清理操作失败: {e}")
     
-    # 清理超过24小时的临时文件和超过3天的Web输出
-    cleanup_old_files()
-    cleanup_old_web_outputs()
+    # 在后台线程执行清理操作
+    cleanup_thread = threading.Thread(target=background_cleanup, daemon=True)
+    cleanup_thread.start()
+    print("INFO: 后台清理任务已启动（不阻塞服务启动）")
 
 
 def cleanup_old_files():
