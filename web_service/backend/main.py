@@ -65,7 +65,7 @@ OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 # 任务状态管理（用于异步处理）
 TASK_STATUS_FILE = project_root / "outputs" / "task_status.json"
 task_status: Dict[str, dict] = {}
-task_lock = threading.Lock()
+task_lock = threading.RLock()  # 使用可重入锁，避免死锁
 
 
 def save_task_status():
@@ -169,6 +169,25 @@ async def root():
         "version": "1.0.0",
         "status": "running"
     }
+
+
+@app.post("/api/process/test")
+async def process_video_test(
+    dance_file_id: str = Form(...),
+    bgm_file_id: str = Form(...)
+):
+    """
+    测试端点：直接返回响应，不执行任何处理
+    """
+    import sys
+    print(f"INFO: [TEST] 收到测试请求 - dance_file_id: {dance_file_id}, bgm_file_id: {bgm_file_id}", file=sys.stderr, flush=True)
+    result = {
+        "task_id": "test-123",
+        "status": "pending",
+        "message": "测试响应"
+    }
+    print(f"INFO: [TEST] 返回测试响应: {result}", file=sys.stderr, flush=True)
+    return JSONResponse(content=result)
 
 
 @app.post("/api/upload")
@@ -642,67 +661,136 @@ async def process_video(
         status: 任务状态（pending）
         message: 提示信息
     """
-    print(f"INFO: 收到处理请求 - dance_file_id: {dance_file_id}, bgm_file_id: {bgm_file_id}")
+    import sys
+    import time
+    start_time = time.time()
+    print(f"INFO: [API/process] 收到处理请求 - dance_file_id: {dance_file_id}, bgm_file_id: {bgm_file_id}", file=sys.stderr, flush=True)
+    sys.stderr.flush()
     
-    # 查找文件
-    dance_files = list(UPLOAD_DIR.glob(f"{dance_file_id}_dance.*"))
-    bgm_files = list(UPLOAD_DIR.glob(f"{bgm_file_id}_bgm.*"))
-    
-    print(f"INFO: 找到dance文件: {len(dance_files)} 个")
-    print(f"INFO: 找到bgm文件: {len(bgm_files)} 个")
-    
-    if not dance_files:
-        print(f"ERROR: 原始视频文件不存在: {dance_file_id}")
-        raise HTTPException(status_code=404, detail="原始视频文件不存在")
-    if not bgm_files:
-        print(f"ERROR: 音源视频文件不存在: {bgm_file_id}")
-        raise HTTPException(status_code=404, detail="音源视频文件不存在")
-    
-    dance_path = dance_files[0]
-    bgm_path = bgm_files[0]
-    
-    print(f"INFO: dance文件路径: {dance_path}")
-    print(f"INFO: bgm文件路径: {bgm_path}")
-    
-    # 生成任务ID和输出目录
-    task_id = str(uuid.uuid4())
-    output_dir = OUTPUT_DIR / task_id
-    output_dir.mkdir(parents=True, exist_ok=True)
-    
-    print(f"INFO: 生成任务ID: {task_id}")
-    print(f"INFO: 输出目录: {output_dir}")
-    
-    # 初始化任务状态
-    with task_lock:
-        task_status[task_id] = {
+    try:
+        # 查找文件（使用更精确的路径，避免glob扫描大量文件）
+        print(f"INFO: 开始查找文件...", file=sys.stderr, flush=True)
+        # 先尝试直接构建路径（更快的路径）
+        dance_path = UPLOAD_DIR / f"{dance_file_id}_dance.mp4"
+        bgm_path = UPLOAD_DIR / f"{bgm_file_id}_bgm.mp4"
+        
+        # 如果mp4不存在，再尝试其他格式
+        if not dance_path.exists():
+            dance_files = list(UPLOAD_DIR.glob(f"{dance_file_id}_dance.*"))
+            if dance_files:
+                dance_path = dance_files[0]
+            else:
+                dance_path = None
+        else:
+            dance_files = [dance_path]
+        
+        if not bgm_path.exists():
+            bgm_files = list(UPLOAD_DIR.glob(f"{bgm_file_id}_bgm.*"))
+            if bgm_files:
+                bgm_path = bgm_files[0]
+            else:
+                bgm_path = None
+        else:
+            bgm_files = [bgm_path]
+        
+        print(f"INFO: 找到dance文件: {len(dance_files) if dance_path else 0} 个", file=sys.stderr, flush=True)
+        print(f"INFO: 找到bgm文件: {len(bgm_files) if bgm_path else 0} 个", file=sys.stderr, flush=True)
+        
+        if not dance_path or not dance_path.exists():
+            print(f"ERROR: 原始视频文件不存在: {dance_file_id}", file=sys.stderr, flush=True)
+            raise HTTPException(status_code=404, detail="原始视频文件不存在")
+        if not bgm_path or not bgm_path.exists():
+            print(f"ERROR: 音源视频文件不存在: {bgm_file_id}", file=sys.stderr, flush=True)
+            raise HTTPException(status_code=404, detail="音源视频文件不存在")
+        
+        print(f"INFO: dance文件路径: {dance_path}", file=sys.stderr, flush=True)
+        print(f"INFO: bgm文件路径: {bgm_path}", file=sys.stderr, flush=True)
+        
+        # 生成任务ID和输出目录
+        step_time = time.time()
+        task_id = str(uuid.uuid4())
+        output_dir = OUTPUT_DIR / task_id
+        print(f"INFO: [步骤1] 生成任务ID完成 (耗时{time.time()-step_time:.3f}s): {task_id}", file=sys.stderr, flush=True)
+        
+        step_time = time.time()
+        output_dir.mkdir(parents=True, exist_ok=True)
+        print(f"INFO: [步骤2] 创建输出目录完成 (耗时{time.time()-step_time:.3f}s): {output_dir}", file=sys.stderr, flush=True)
+        sys.stderr.flush()
+        
+        # 初始化任务状态（快速操作，使用锁但快速释放）
+        step_time = time.time()
+        try:
+            with task_lock:
+                task_status[task_id] = {
+                    "status": "pending",
+                    "message": "任务已提交，正在处理...",
+                    "created_at": datetime.now().isoformat(),
+                    "modular_status": "processing",
+                    "v2_status": "processing"
+                }
+            print(f"INFO: [步骤3] 任务状态已初始化 (耗时{time.time()-step_time:.3f}s): {task_id}", file=sys.stderr, flush=True)
+        except Exception as status_error:
+            print(f"ERROR: [步骤3] 初始化任务状态失败: {status_error}", file=sys.stderr, flush=True)
+            import traceback
+            traceback.print_exc(file=sys.stderr)
+            # 即使失败也继续，不阻塞响应
+        
+        # 启动后台处理线程
+        step_time = time.time()
+        try:
+            thread = threading.Thread(
+                target=process_video_background,
+                args=(task_id, dance_path, bgm_path, output_dir),
+                daemon=True  # 设置为守护线程，主进程退出时自动退出
+            )
+            thread.start()
+            print(f"INFO: [步骤4] 后台处理线程已启动 (耗时{time.time()-step_time:.3f}s): {task_id}", file=sys.stderr, flush=True)
+        except Exception as thread_error:
+            print(f"ERROR: 启动后台处理线程失败: {thread_error}", file=sys.stderr, flush=True)
+            import traceback
+            traceback.print_exc(file=sys.stderr)
+            raise HTTPException(status_code=500, detail=f"启动处理任务失败: {str(thread_error)}")
+        
+        # 立即返回任务ID（不等待文件保存）
+        step_time = time.time()
+        result = {
+            "task_id": task_id,
             "status": "pending",
-            "message": "任务已提交，正在处理...",
-            "created_at": datetime.now().isoformat(),
-            "modular_status": "processing",
-            "v2_status": "processing"
+            "message": "任务已提交，正在处理..."
         }
-    save_task_status()  # 保存到文件
-    
-    print(f"INFO: 任务状态已初始化: {task_id}")
-    
-    # 启动后台处理线程
-    thread = threading.Thread(
-        target=process_video_background,
-        args=(task_id, dance_path, bgm_path, output_dir),
-        daemon=True  # 设置为守护线程，主进程退出时自动退出
-    )
-    thread.start()
-    
-    print(f"INFO: 后台处理线程已启动: {task_id}")
-    
-    # 立即返回任务ID
-    result = {
-        "task_id": task_id,
-        "status": "pending",
-        "message": "任务已提交，正在处理..."
-    }
-    print(f"INFO: 返回任务响应: {result}")
-    return result
+        print(f"INFO: [步骤5] 准备返回响应 (耗时{time.time()-step_time:.3f}s)", file=sys.stderr, flush=True)
+        print(f"INFO: [API/process] 总耗时: {time.time()-start_time:.3f}s, 返回结果: {result}", file=sys.stderr, flush=True)
+        
+        # 在后台线程中保存状态（不阻塞响应）
+        def save_status_async():
+            try:
+                save_task_status()
+            except Exception as e:
+                print(f"WARNING: 异步保存任务状态失败: {e}", file=sys.stderr, flush=True)
+        
+        threading.Thread(target=save_status_async, daemon=True).start()
+        
+        # 确保在返回前所有日志都已输出
+        sys.stderr.flush()
+        
+        # 直接返回JSON响应，避免FastAPI的自动序列化可能的问题
+        print(f"INFO: [API/process] 即将返回响应...", file=sys.stderr, flush=True)
+        sys.stderr.flush()
+        
+        return JSONResponse(content=result)
+    except HTTPException:
+        # 重新抛出HTTP异常
+        import sys
+        sys.stderr.flush()
+        raise
+    except Exception as e:
+        import traceback
+        error_trace = traceback.format_exc()
+        print(f"ERROR: 处理请求时发生异常: {e}", file=sys.stderr, flush=True)
+        print(f"ERROR: {error_trace}", file=sys.stderr, flush=True)
+        import sys
+        sys.stderr.flush()
+        raise HTTPException(status_code=500, detail=f"处理请求失败: {str(e)}")
 
 
 @app.get("/api/status/{task_id}")
