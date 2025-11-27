@@ -153,14 +153,8 @@ def cleanup_old_tasks():
         print(f"WARNING: 清理任务状态失败: {e}")
 
 
-# 启动时加载任务状态
-load_task_status()
-
-# 启动时清理旧任务
-cleanup_old_tasks()
-
-# 启动时清理旧的Web输出
-cleanup_old_web_outputs()
+# 注意：任务状态加载和清理操作已移至 @app.on_event("startup") 中执行
+# 这样可以避免在导入模块时执行耗时操作
 
 
 @app.get("/")
@@ -793,7 +787,14 @@ async def health_check():
 # 启动时清理旧文件
 @app.on_event("startup")
 async def startup_event():
-    """启动时清理超过24小时的临时文件和超过3天的Web输出"""
+    """启动时执行初始化操作"""
+    # 加载任务状态
+    load_task_status()
+    
+    # 清理旧任务
+    cleanup_old_tasks()
+    
+    # 清理超过24小时的临时文件和超过3天的Web输出
     cleanup_old_files()
     cleanup_old_web_outputs()
 
