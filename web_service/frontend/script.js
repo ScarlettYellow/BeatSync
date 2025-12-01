@@ -678,7 +678,42 @@ async function pollTaskStatus(taskId) {
                 processBtn.disabled = false;
                 processBtn.textContent = '开始处理';
             } else if (result.status === 'processing' || result.status === 'pending') {
-                // 继续处理中
+                // 检查是否所有版本都已完成（无论成功或失败）
+                const modularDone = result.modular_status === 'success' || result.modular_status === 'failed';
+                const v2Done = result.v2_status === 'success' || result.v2_status === 'failed';
+                const allDone = modularDone && v2Done;
+                
+                // 如果所有版本都已完成，停止轮询并更新状态
+                if (allDone) {
+                    clearInterval(pollInterval);
+                    const elapsedSeconds = attempts * 5;
+                    const elapsedMinutes = Math.floor(elapsedSeconds / 60);
+                    const remainingSeconds = elapsedSeconds % 60;
+                    
+                    // 确定最终状态消息
+                    let finalMessage = '处理完成！';
+                    if (result.modular_status === 'success' && result.v2_status === 'success') {
+                        finalMessage = '处理完成！两个版本都已成功生成。';
+                    } else if (result.modular_status === 'success') {
+                        finalMessage = '处理完成！Modular版本已成功生成。';
+                    } else if (result.v2_status === 'success') {
+                        finalMessage = '处理完成！V2版本已成功生成。';
+                    }
+                    
+                    if (elapsedSeconds > 60) {
+                        updateStatus(`${finalMessage} (耗时${elapsedMinutes}分${remainingSeconds}秒)`, 'success');
+                    } else {
+                        updateStatus(`${finalMessage} (耗时${elapsedSeconds}秒)`, 'success');
+                    }
+                    
+                    downloadSection.style.display = 'block';
+                    updateDownloadButton(result);
+                    processBtn.disabled = false;
+                    processBtn.textContent = '开始处理';
+                    return; // 停止轮询
+                }
+                
+                // 继续处理中，显示等待时间
                 const elapsedSeconds = attempts * 5;
                 const elapsedMinutes = Math.floor(elapsedSeconds / 60);
                 const remainingSeconds = elapsedSeconds % 60;
@@ -691,26 +726,15 @@ async function pollTaskStatus(taskId) {
                     updateStatus(`${statusMsg} (已等待${elapsedSeconds}秒)`, 'processing');
                 }
                 
-                // 检查是否所有版本都已完成（无论成功或失败）
-                const modularDone = result.modular_status === 'success' || result.modular_status === 'failed';
-                const v2Done = result.v2_status === 'success' || result.v2_status === 'failed';
-                const allDone = modularDone && v2Done;
-                
                 // 如果有部分完成，显示下载区域并更新按钮
                 if (result.modular_output || result.v2_output) {
                     downloadSection.style.display = 'block';
                     updateDownloadButton(result);
                 }
                 
-                // 如果所有版本都已完成，恢复处理按钮（允许开始新任务）
-                if (allDone) {
-                    processBtn.disabled = false;
-                    processBtn.textContent = '开始处理';
-                } else {
-                    // 仍在处理中，保持按钮状态
-                    processBtn.disabled = true;
-                    processBtn.textContent = '处理中...';
-                }
+                // 仍在处理中，保持按钮状态
+                processBtn.disabled = true;
+                processBtn.textContent = '处理中...';
             }
         } catch (error) {
             console.error('Poll error:', error);
