@@ -261,6 +261,7 @@ async function uploadFile(file, fileType) {
                                 status: xhr.status,
                                 statusText: xhr.statusText,
                                 json: async () => result,
+                                text: async () => xhr.responseText,
                                 headers: {
                                     get: (name) => xhr.getResponseHeader(name),
                                     entries: () => {
@@ -279,6 +280,7 @@ async function uploadFile(file, fileType) {
                                 status: xhr.status,
                                 statusText: xhr.statusText,
                                 json: async () => ({ message: xhr.responseText }),
+                                text: async () => xhr.responseText,
                                 headers: { get: () => null, entries: () => [] }
                             });
                         }
@@ -347,22 +349,34 @@ async function uploadFile(file, fileType) {
                 console.error('上传错误详情:', error);
             } catch (e) {
                 // 如果响应不是JSON，尝试读取文本
-                const errorText = await response.text();
-                console.error('上传错误响应:', errorText);
-                errorDetail = errorText || `HTTP ${response.status}: ${response.statusText}`;
+                try {
+                    const errorText = await response.text();
+                    console.error('上传错误响应:', errorText);
+                    errorDetail = errorText || `HTTP ${response.status}: ${response.statusText}`;
+                } catch (textError) {
+                    errorDetail = `HTTP ${response.status}: ${response.statusText}`;
+                }
             }
             throw new Error(errorDetail);
         }
         
         let result;
         try {
-            const responseText = await response.text();
-            console.log('📄 响应文本:', responseText);
-            result = JSON.parse(responseText);
+            // 直接使用json()方法，因为XMLHttpRequest的Promise已经解析了JSON
+            result = await response.json();
             console.log('✅ 上传成功，解析后的响应:', result);
         } catch (parseError) {
             console.error('❌ JSON解析失败:', parseError);
-            throw new Error('服务器响应格式错误');
+            // 如果json()失败，尝试使用text()然后手动解析
+            try {
+                const responseText = await response.text();
+                console.log('📄 响应文本:', responseText);
+                result = JSON.parse(responseText);
+                console.log('✅ 上传成功（手动解析），解析后的响应:', result);
+            } catch (textParseError) {
+                console.error('❌ 文本解析也失败:', textParseError);
+                throw new Error('服务器响应格式错误');
+            }
         }
         
         // 保存文件ID
