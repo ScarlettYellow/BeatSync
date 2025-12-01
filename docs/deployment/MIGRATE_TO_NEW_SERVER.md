@@ -203,9 +203,54 @@ const backendUrl = 'https://124.221.58.149';  // 新服务器IP
 
 ---
 
-## 三、一键部署脚本（推荐）
+## 三、分步部署命令（推荐）
 
-如果觉得步骤太多，可以使用一键部署脚本：
+### 步骤1：修复系统状态（如果需要）
+
+```bash
+sudo dpkg --configure -a
+```
+
+### 步骤2：更新系统
+
+```bash
+sudo apt update
+sudo apt upgrade -y
+```
+
+### 步骤3：安装Git
+
+```bash
+sudo apt install -y git
+```
+
+### 步骤4：创建项目目录并克隆代码
+
+```bash
+sudo mkdir -p /opt/beatsync
+cd /opt
+sudo rm -rf beatsync
+sudo git clone https://github.com/scarlettyellow/BeatSync.git beatsync
+```
+
+### 步骤5：设置目录权限
+
+```bash
+sudo chown -R ubuntu:ubuntu /opt/beatsync
+```
+
+### 步骤6：运行部署脚本
+
+```bash
+cd /opt/beatsync
+sudo bash scripts/deployment/deploy_to_tencent_cloud.sh
+```
+
+---
+
+## 三-1、一键部署脚本（可选）
+
+如果所有步骤都正常，也可以使用一键部署脚本：
 
 ```bash
 # 在服务器上执行
