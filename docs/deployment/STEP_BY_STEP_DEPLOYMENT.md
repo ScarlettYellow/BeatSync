@@ -30,9 +30,25 @@
 
 **目的**：修复可能的dpkg状态问题
 
+**如果遇到dpkg锁定错误，先处理锁定问题：**
+
+```bash
+# 检查是否有dpkg进程在运行
+ps aux | grep -E 'dpkg|apt'
+
+# 如果有进程在运行，等待完成或终止（见下方说明）
+# 如果进程卡住，可以终止：
+# sudo kill <PID>
+# sleep 5
+```
+
+**然后执行修复：**
+
 ```bash
 sudo dpkg --configure -a
 ```
+
+**如果遇到锁定错误**，参考：`docs/deployment/FIX_DPKG_LOCK.md`
 
 **预期输出**：无错误信息
 
