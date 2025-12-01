@@ -376,6 +376,13 @@ async function uploadFile(file, fileType) {
             showFileInfo('bgm', file.name, formatFileSize(result.size));
         }
         
+        // 确保进度条显示100%，然后延迟隐藏
+        uploadProgressFill.style.width = '100%';
+        uploadProgressText.textContent = '100% (上传完成)';
+        setTimeout(() => {
+            uploadProgressContainer.style.display = 'none';
+        }, 1000);
+        
         updateStatus('文件上传成功', 'success');
         updateProcessButton();
         
