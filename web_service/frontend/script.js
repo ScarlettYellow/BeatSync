@@ -52,6 +52,12 @@ const statusText = document.getElementById('status-text');
 const downloadSection = document.getElementById('download-section');
 const downloadModularBtn = document.getElementById('download-modular-btn');
 const downloadV2Btn = document.getElementById('download-v2-btn');
+const previewModularBtn = document.getElementById('preview-modular-btn');
+const previewV2Btn = document.getElementById('preview-v2-btn');
+const modularPreview = document.getElementById('modular-preview');
+const v2Preview = document.getElementById('v2-preview');
+const modularResult = document.getElementById('modular-result');
+const v2Result = document.getElementById('v2-result');
 
 // 初始化
 document.addEventListener('DOMContentLoaded', () => {
@@ -650,11 +656,24 @@ function updateDownloadButton(result) {
     const modularStatus = result.modular_status || 'processing';
     const v2Status = result.v2_status || 'processing';
     
-    // 更新modular按钮
+    // 更新modular按钮和预览
     if (modularStatus === 'success' && result.modular_output) {
+        modularResult.style.display = 'block';
         downloadModularBtn.disabled = false;
         downloadModularBtn.querySelector('.btn-status').textContent = '✅';
-        downloadModularBtn.querySelector('.btn-text').textContent = '下载Modular版本结果';
+        downloadModularBtn.querySelector('.btn-text').textContent = '下载视频';
+        previewModularBtn.disabled = false;
+        previewModularBtn.querySelector('.btn-status').textContent = '▶️';
+        previewModularBtn.querySelector('.btn-text').textContent = '在线预览';
+        
+        // 预览功能
+        previewModularBtn.onclick = () => {
+            const modularUrl = `${API_BASE_URL}/api/download/${result.task_id}?version=modular`;
+            modularPreview.src = modularUrl;
+            modularPreview.style.display = 'block';
+            modularPreview.play();
+            updateStatus('正在播放Modular版本，可以边看边下载', 'info');
+        };
         downloadModularBtn.onclick = async () => {
             // 重新获取最新状态（避免使用闭包中的旧值）
             try {
@@ -699,11 +718,24 @@ function updateDownloadButton(result) {
         downloadModularBtn.onclick = null;
     }
     
-    // 更新v2按钮
+    // 更新v2按钮和预览
     if (v2Status === 'success' && result.v2_output) {
+        v2Result.style.display = 'block';
         downloadV2Btn.disabled = false;
         downloadV2Btn.querySelector('.btn-status').textContent = '✅';
-        downloadV2Btn.querySelector('.btn-text').textContent = '下载V2版本结果';
+        downloadV2Btn.querySelector('.btn-text').textContent = '下载视频';
+        previewV2Btn.disabled = false;
+        previewV2Btn.querySelector('.btn-status').textContent = '▶️';
+        previewV2Btn.querySelector('.btn-text').textContent = '在线预览';
+        
+        // 预览功能
+        previewV2Btn.onclick = () => {
+            const v2Url = `${API_BASE_URL}/api/download/${result.task_id}?version=v2`;
+            v2Preview.src = v2Url;
+            v2Preview.style.display = 'block';
+            v2Preview.play();
+            updateStatus('正在播放V2版本，可以边看边下载', 'info');
+        };
         downloadV2Btn.onclick = async () => {
             // 重新获取最新状态（避免使用闭包中的旧值）
             try {

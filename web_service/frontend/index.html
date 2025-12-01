@@ -53,17 +53,46 @@
             <p class="status-text" id="status-text"></p>
         </div>
         
-        <!-- 下载按钮 -->
+        <!-- 预览和下载区域 -->
         <div class="download-section" id="download-section" style="display: none;">
-            <div class="download-buttons">
-                <button class="download-btn" id="download-v2-btn" disabled>
-                    <span class="btn-status">⏳</span>
-                    <span class="btn-text">下载V2版本结果</span>
-                </button>
-                <button class="download-btn" id="download-modular-btn" disabled>
-                    <span class="btn-status">⏳</span>
-                    <span class="btn-text">下载Modular版本结果</span>
-                </button>
+            <!-- V2版本 -->
+            <div class="video-result" id="v2-result" style="display: none;">
+                <h3>V2版本结果</h3>
+                <div class="video-preview-container">
+                    <video id="v2-preview" controls preload="metadata" style="max-width: 100%; max-height: 400px; display: none;">
+                        您的浏览器不支持视频播放
+                    </video>
+                </div>
+                <div class="result-actions">
+                    <button class="preview-btn" id="preview-v2-btn" disabled>
+                        <span class="btn-status">⏳</span>
+                        <span class="btn-text">在线预览</span>
+                    </button>
+                    <button class="download-btn" id="download-v2-btn" disabled>
+                        <span class="btn-status">⏳</span>
+                        <span class="btn-text">下载视频</span>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Modular版本 -->
+            <div class="video-result" id="modular-result" style="display: none;">
+                <h3>Modular版本结果</h3>
+                <div class="video-preview-container">
+                    <video id="modular-preview" controls preload="metadata" style="max-width: 100%; max-height: 400px; display: none;">
+                        您的浏览器不支持视频播放
+                    </video>
+                </div>
+                <div class="result-actions">
+                    <button class="preview-btn" id="preview-modular-btn" disabled>
+                        <span class="btn-status">⏳</span>
+                        <span class="btn-text">在线预览</span>
+                    </button>
+                    <button class="download-btn" id="download-modular-btn" disabled>
+                        <span class="btn-status">⏳</span>
+                        <span class="btn-text">下载视频</span>
+                    </button>
+                </div>
             </div>
         </div>
     </div>
