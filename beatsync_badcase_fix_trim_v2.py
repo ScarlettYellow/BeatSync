@@ -549,7 +549,7 @@ def create_trimmed_video(dance_video: str, bgm_video: str, output_video: str,
                 cmd += ['-c:v', 'h264_videotoolbox', '-b:v', '6M', '-maxrate', '8M', '-bufsize', '12M', '-pix_fmt', 'yuv420p']
             else:
                 preset = 'ultrafast' if fast_video else 'fast'
-                cmd += ['-c:v', 'libx264', '-preset', preset, '-crf', '28']  # 从23改为28，减小文件大小约40-50%
+                cmd += ['-c:v', 'libx264', '-preset', preset, '-crf', '23']  # CRF 23：高质量输出
             cmd += ['-c:a', 'aac', '-b:a', '192k', '-map', '0:v:0', '-map', '1:a:0', temp_video]
         elif badcase_type == "T2_GT_T1":
             # T2 > T1: 裁剪BGM音频的前gap_duration秒
@@ -562,7 +562,7 @@ def create_trimmed_video(dance_video: str, bgm_video: str, output_video: str,
                 cmd += ['-c:v', 'h264_videotoolbox', '-b:v', '6M', '-maxrate', '8M', '-bufsize', '12M', '-pix_fmt', 'yuv420p']
             else:
                 preset = 'ultrafast' if fast_video else 'fast'
-                cmd += ['-c:v', 'libx264', '-preset', preset, '-crf', '28']  # 从23改为28，减小文件大小约40-50%
+                cmd += ['-c:v', 'libx264', '-preset', preset, '-crf', '23']  # CRF 23：高质量输出
             cmd += ['-c:a', 'aac', '-b:a', '192k', '-map', '0:v:0', '-map', '1:a:0', temp_video]
         else:
             # NORMAL: 直接合成

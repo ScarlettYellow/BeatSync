@@ -794,7 +794,7 @@ def trim_silent_segments_module(input_video: str, output_video: str, dance_video
             else:
                 # x264 编码：在fast_video 下用 ultrafast，否则保持 fast，保证与原有输出一致性
                 preset = 'ultrafast' if fast_video else 'fast'
-                cmd_trim += ['-c:v', 'libx264', '-preset', preset, '-crf', '28']  # 从23改为28，减小文件大小约40-50%
+                cmd_trim += ['-c:v', 'libx264', '-preset', preset, '-crf', '23']  # CRF 23：高质量输出
         cmd_trim += ['-c:a', 'aac', '-b:a', '192k', output_video]
         
         # 增强异常处理
@@ -814,7 +814,7 @@ def trim_silent_segments_module(input_video: str, output_video: str, dance_video
                         '-ss', str(trim_start),
                         '-t', str(final_duration),
                         '-i', input_video,
-                        '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '28',  # 从23改为28，减小文件大小
+                        '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23',  # CRF 23：高质量输出
                         '-c:a', 'aac', '-b:a', '192k',
                         output_video
                     ]
@@ -841,7 +841,7 @@ def trim_silent_segments_module(input_video: str, output_video: str, dance_video
                         '-ss', str(trim_start),
                         '-t', str(final_duration),
                         '-i', input_video,
-                        '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '28',  # 从23改为28，减小文件大小
+                        '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23',  # CRF 23：高质量输出
                         '-c:a', 'aac', '-b:a', '192k',
                         output_video
                     ]
