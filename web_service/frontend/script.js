@@ -25,8 +25,8 @@ const API_BASE_URL = (() => {
     }
     
     // 生产环境：使用腾讯云服务器（HTTPS）
-    // 腾讯云服务器地址：https://1.12.239.225（通过Nginx反向代理，端口443）
-    const backendUrl = window.API_BASE_URL || 'https://1.12.239.225';
+    // 腾讯云服务器地址：https://124.221.58.149（4核4GB，通过Nginx反向代理，端口443）
+    const backendUrl = window.API_BASE_URL || 'https://124.221.58.149';
     console.log('🟢 生产环境检测（腾讯云服务器 - HTTPS）');
     console.log('   访问地址:', window.location.href);
     console.log('   后端URL:', backendUrl);
