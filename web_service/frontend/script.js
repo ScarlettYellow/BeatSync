@@ -24,10 +24,10 @@ const API_BASE_URL = (() => {
         return backendUrl;
     }
     
-    // 生产环境：使用腾讯云服务器
-    // 腾讯云服务器地址：http://1.12.239.225:8000
-    const backendUrl = window.API_BASE_URL || 'http://1.12.239.225:8000';
-    console.log('🟢 生产环境检测（腾讯云服务器）');
+    // 生产环境：使用腾讯云服务器（HTTPS）
+    // 腾讯云服务器地址：https://1.12.239.225（通过Nginx反向代理，端口443）
+    const backendUrl = window.API_BASE_URL || 'https://1.12.239.225';
+    console.log('🟢 生产环境检测（腾讯云服务器 - HTTPS）');
     console.log('   访问地址:', window.location.href);
     console.log('   后端URL:', backendUrl);
     return backendUrl;
