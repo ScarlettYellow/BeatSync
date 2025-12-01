@@ -131,7 +131,7 @@ async function handleFileSelect(event, fileType) {
 async function checkBackendHealth() {
     const healthUrl = `${API_BASE_URL}/api/health`;
     const controller = new AbortController();
-    const timeoutMs = 5000; // 5秒超时
+    const timeoutMs = 15000; // 15秒超时（从5秒增加到15秒，适应跨域访问延迟）
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
     
     try {
@@ -181,13 +181,13 @@ async function uploadFile(file, fileType) {
         const backendAvailable = await checkBackendHealth();
         
         if (!backendAvailable) {
-            const errorMsg = `后端服务不可用（5秒内无响应）。\n\n` +
-                `请按以下步骤操作：\n` +
-                `1. 打开终端，进入项目目录\n` +
-                `2. 运行命令：cd web_service/backend && ./start_server.sh\n` +
-                `3. 等待后端启动（看到 "Uvicorn running on..." 消息）\n` +
-                `4. 刷新页面重试\n\n` +
-                `或者手动检查：访问 ${API_BASE_URL}/api/health 查看服务状态`;
+            const errorMsg = `后端服务不可用（15秒内无响应）。\n\n` +
+                `可能原因：\n` +
+                `1. 网络连接问题（请检查网络）\n` +
+                `2. 防火墙未开放8000端口（请在腾讯云控制台配置防火墙）\n` +
+                `3. 后端服务未运行（请检查服务器状态）\n\n` +
+                `手动检查：访问 ${API_BASE_URL}/api/health 查看服务状态\n` +
+                `如果健康检查正常，可能是CORS或网络延迟问题，请刷新页面重试。`;
             throw new Error(errorMsg);
         }
         
