@@ -26,6 +26,9 @@ try:
 except Exception:
     pass
 
+# 获取CPU核心数（用于优化线程数）
+CPU_COUNT = os.cpu_count() or 2
+
 def extract_audio_from_video(video_path: str, output_path: str, sr: int = 44100) -> bool:
     """从视频中提取音频为 WAV 格式"""
     try:
