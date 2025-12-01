@@ -33,6 +33,15 @@ const API_BASE_URL = (() => {
     return backendUrl;
 })();
 
+// 格式化文件大小
+function formatFileSize(bytes) {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+}
+
 // 状态管理
 let state = {
     danceFileId: null,
@@ -58,6 +67,9 @@ const modularPreview = document.getElementById('modular-preview');
 const v2Preview = document.getElementById('v2-preview');
 const modularResult = document.getElementById('modular-result');
 const v2Result = document.getElementById('v2-result');
+const uploadProgressContainer = document.getElementById('upload-progress-container');
+const uploadProgressFill = document.getElementById('upload-progress-fill');
+const uploadProgressText = document.getElementById('upload-progress-text');
 
 // 初始化
 document.addEventListener('DOMContentLoaded', () => {
@@ -199,6 +211,11 @@ async function uploadFile(file, fileType) {
         
         updateStatus(`正在上传${fileType === 'dance' ? '原始视频' : '音源视频'}...`, 'processing');
         
+        // 显示上传进度条
+        uploadProgressContainer.style.display = 'block';
+        uploadProgressFill.style.width = '0%';
+        uploadProgressText.textContent = '0%';
+        
         console.log('开始上传文件:', {
             fileName: file.name,
             fileSize: file.size,
@@ -206,24 +223,87 @@ async function uploadFile(file, fileType) {
             apiUrl: `${API_BASE_URL}/api/upload`
         });
         
-        // 创建带超时的fetch请求
-        // 根据文件大小动态调整超时时间：小文件(<10MB) 2分钟，大文件(>=10MB) 10分钟
+        // 使用XMLHttpRequest替代fetch，以支持上传进度
         const fileSizeMB = file.size / (1024 * 1024);
         const timeoutMs = fileSizeMB >= 10 ? 600000 : 120000; // 大文件10分钟，小文件2分钟
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
         
         let response;
         const startTime = Date.now();
         try {
-            console.log('📤 发送fetch请求...');
-            response = await fetch(`${API_BASE_URL}/api/upload`, {
-                method: 'POST',
-                body: formData,
-                signal: controller.signal
-                // 注意：不要设置Content-Type，让浏览器自动设置multipart/form-data边界
+            console.log('📤 发送上传请求...');
+            response = await new Promise((resolve, reject) => {
+                const xhr = new XMLHttpRequest();
+                let timeoutId;
+                
+                // 设置超时
+                timeoutId = setTimeout(() => {
+                    xhr.abort();
+                    reject(new Error('AbortError'));
+                }, timeoutMs);
+                
+                // 上传进度事件
+                xhr.upload.addEventListener('progress', (e) => {
+                    if (e.lengthComputable) {
+                        const percent = Math.round((e.loaded / e.total) * 100);
+                        uploadProgressFill.style.width = percent + '%';
+                        uploadProgressText.textContent = `${percent}% (${formatFileSize(e.loaded)} / ${formatFileSize(e.total)})`;
+                    }
+                });
+                
+                // 请求完成
+                xhr.addEventListener('load', () => {
+                    clearTimeout(timeoutId);
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        try {
+                            const result = JSON.parse(xhr.responseText);
+                            resolve({
+                                ok: true,
+                                status: xhr.status,
+                                statusText: xhr.statusText,
+                                json: async () => result,
+                                headers: {
+                                    get: (name) => xhr.getResponseHeader(name),
+                                    entries: () => {
+                                        const headers = {};
+                                        xhr.getAllResponseHeaders().split('\r\n').forEach(line => {
+                                            const [key, value] = line.split(': ');
+                                            if (key && value) headers[key] = value;
+                                        });
+                                        return Object.entries(headers);
+                                    }
+                                }
+                            });
+                        } catch (e) {
+                            resolve({
+                                ok: true,
+                                status: xhr.status,
+                                statusText: xhr.statusText,
+                                json: async () => ({ message: xhr.responseText }),
+                                headers: { get: () => null, entries: () => [] }
+                            });
+                        }
+                    } else {
+                        reject(new Error(`HTTP ${xhr.status}: ${xhr.statusText}`));
+                    }
+                });
+                
+                // 请求错误
+                xhr.addEventListener('error', () => {
+                    clearTimeout(timeoutId);
+                    reject(new Error('Network error'));
+                });
+                
+                // 请求中止
+                xhr.addEventListener('abort', () => {
+                    clearTimeout(timeoutId);
+                    reject(new Error('AbortError'));
+                });
+                
+                // 发送请求
+                xhr.open('POST', `${API_BASE_URL}/api/upload`);
+                xhr.send(formData);
             });
-            clearTimeout(timeoutId);
+            
             const elapsed = Date.now() - startTime;
             console.log(`📥 收到响应 (耗时${elapsed}ms):`, response.status, response.statusText);
         } catch (fetchError) {
@@ -250,11 +330,13 @@ async function uploadFile(file, fileType) {
             }
         }
         
+        // 隐藏进度条
+        uploadProgressContainer.style.display = 'none';
+        
         console.log('📋 响应详情:', {
             status: response.status,
             statusText: response.statusText,
-            ok: response.ok,
-            headers: Object.fromEntries(response.headers.entries())
+            ok: response.ok
         });
         
         if (!response.ok) {
