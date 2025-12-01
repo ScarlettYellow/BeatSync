@@ -983,7 +983,8 @@ def main():
         if not args.enable_cache:
             args.enable_cache = True
         if args.threads is None:
-            args.threads = 4
+            # 默认使用CPU核心数（如果检测不到则使用2）
+            args.threads = os.cpu_count() or 2
         if args.lib_threads is None:
             args.lib_threads = 1
 
