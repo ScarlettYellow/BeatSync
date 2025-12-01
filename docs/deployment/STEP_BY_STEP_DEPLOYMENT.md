@@ -314,7 +314,33 @@ curl -k https://124.221.58.149/api/health
 
 ---
 
-## 七、故障排除
+## 七、终止正在运行的命令
+
+### 如果命令一直显示"Command Running"
+
+**方法1：通过控制台终止**
+1. 点击"查看执行详情"
+2. 查找"终止"或"Stop"按钮
+3. 点击终止
+
+**方法2：通过SSH终止（如果控制台无法终止）**
+
+```bash
+# SSH登录服务器后，查找进程
+ps aux | grep -E 'bash|apt|dpkg|deploy'
+
+# 终止进程（替换<PID>为实际的进程ID）
+sudo kill <PID>
+
+# 如果进程不响应，强制终止
+sudo kill -9 <PID>
+```
+
+**详细说明**：参考 `docs/deployment/STOP_RUNNING_COMMAND.md`
+
+---
+
+## 八、故障排除
 
 ### 问题1：步骤1失败（dpkg错误）
 
