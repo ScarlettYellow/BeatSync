@@ -666,10 +666,11 @@ function updateDownloadButton(result) {
         previewModularBtn.querySelector('.btn-status').textContent = '▶️';
         previewModularBtn.querySelector('.btn-text').textContent = '在线预览';
         
-        // 预览功能：在新窗口打开
+        // 预览功能：在新窗口打开预览页面
         previewModularBtn.onclick = () => {
-            const modularUrl = `${API_BASE_URL}/api/download/${result.task_id}?version=modular`;
-            window.open(modularUrl, '_blank');
+            const modularUrl = `${API_BASE_URL}/api/preview/${result.task_id}?version=modular`;
+            const previewUrl = `preview.html?url=${encodeURIComponent(modularUrl)}&title=${encodeURIComponent('Modular版本结果')}`;
+            window.open(previewUrl, '_blank');
             updateStatus('已在新窗口打开Modular版本预览', 'info');
         };
         downloadModularBtn.onclick = async () => {
@@ -726,10 +727,11 @@ function updateDownloadButton(result) {
         previewV2Btn.querySelector('.btn-status').textContent = '▶️';
         previewV2Btn.querySelector('.btn-text').textContent = '在线预览';
         
-        // 预览功能：在新窗口打开
+        // 预览功能：在新窗口打开预览页面
         previewV2Btn.onclick = () => {
-            const v2Url = `${API_BASE_URL}/api/download/${result.task_id}?version=v2`;
-            window.open(v2Url, '_blank');
+            const v2Url = `${API_BASE_URL}/api/preview/${result.task_id}?version=v2`;
+            const previewUrl = `preview.html?url=${encodeURIComponent(v2Url)}&title=${encodeURIComponent('V2版本结果')}`;
+            window.open(previewUrl, '_blank');
             updateStatus('已在新窗口打开V2版本预览', 'info');
         };
         downloadV2Btn.onclick = async () => {

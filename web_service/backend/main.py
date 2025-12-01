@@ -847,6 +847,62 @@ async def get_task_status(task_id: str):
     return result
 
 
+@app.get("/api/preview/{task_id}")
+async def preview_result(task_id: str, version: Optional[str] = None):
+    """
+    预览处理结果（在线播放）
+    
+    参数:
+        task_id: 任务ID
+        version: 版本类型 ("modular" 或 "v2")，如果不指定则预览modular版本
+    
+    返回:
+        视频文件（用于在线播放）
+    """
+    # 查找输出文件
+    output_dir = OUTPUT_DIR / task_id
+    if not output_dir.exists():
+        raise HTTPException(status_code=404, detail="任务不存在")
+    
+    modular_output = output_dir / f"{task_id}_modular.mp4"
+    modular_intermediate = output_dir / f"{task_id}_modular_module1_aligned.mp4"
+    v2_output = output_dir / f"{task_id}_v2.mp4"
+    
+    # 根据version参数选择文件（优先使用最终文件，如果没有则使用中间文件）
+    if version == "v2" and v2_output.exists():
+        output_file = v2_output
+        filename = f"v2_{task_id}.mp4"
+    elif version == "modular":
+        if modular_output.exists():
+            output_file = modular_output
+            filename = f"modular_{task_id}.mp4"
+        elif modular_intermediate.exists():
+            output_file = modular_intermediate
+            filename = f"modular_{task_id}_intermediate.mp4"
+        else:
+            raise HTTPException(status_code=404, detail="Modular版本输出文件不存在")
+    elif modular_output.exists():
+        # 默认返回modular版本
+        output_file = modular_output
+        filename = f"modular_{task_id}.mp4"
+    elif v2_output.exists():
+        output_file = v2_output
+        filename = f"v2_{task_id}.mp4"
+    else:
+        raise HTTPException(status_code=404, detail="输出文件不存在")
+    
+    # 使用流式响应，支持在线播放（不设置attachment）
+    return FileResponse(
+        str(output_file),
+        media_type='video/mp4',
+        filename=filename,
+        headers={
+            "Accept-Ranges": "bytes",  # 支持断点续传和流式播放
+            "Content-Disposition": f'inline; filename="{filename}"'  # inline表示在线播放，而不是下载
+        }
+    )
+
+
 @app.get("/api/download/{task_id}")
 async def download_result(task_id: str, version: Optional[str] = None):
     """
