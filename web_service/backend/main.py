@@ -324,11 +324,23 @@ def process_video_background(task_id: str, dance_path: Path, bgm_path: Path, out
             try:
                 if perf_logger:
                     perf_logger.log_step("启动并行处理线程")
+                
+                # 检测CPU核心数，决定是否启用并行模式
+                import os
+                cpu_count = os.cpu_count() or 2
+                # 如果CPU核心数>=2，启用并行模式（两个版本同时处理）
+                # 如果只有1核，使用串行模式（避免资源竞争）
+                use_parallel = cpu_count >= 2
+                
+                if perf_logger:
+                    perf_logger.log_step(f"CPU核心数: {cpu_count}, 并行模式: {use_parallel}")
+                
                 success = process_beat_sync_parallel(
                     str(dance_path),
                     str(bgm_path),
                     str(output_dir),
-                    task_id
+                    task_id,
+                    parallel=use_parallel  # 根据CPU核心数自动启用并行模式
                 )
                 processing_success[0] = success
                 if perf_logger:
