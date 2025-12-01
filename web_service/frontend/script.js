@@ -24,11 +24,10 @@ const API_BASE_URL = (() => {
         return backendUrl;
     }
     
-    // 生产环境：从环境变量或配置中获取
-    // 注意：部署时需要替换为实际的Render后端URL
-    // 例如：'https://beatsync-backend-xxx.onrender.com'
-    const backendUrl = window.API_BASE_URL || 'https://beatsync-backend-asha.onrender.com';
-    console.log('🟢 生产环境检测');
+    // 生产环境：使用腾讯云服务器
+    // 腾讯云服务器地址：http://1.12.239.225:8000
+    const backendUrl = window.API_BASE_URL || 'http://1.12.239.225:8000';
+    console.log('🟢 生产环境检测（腾讯云服务器）');
     console.log('   访问地址:', window.location.href);
     console.log('   后端URL:', backendUrl);
     return backendUrl;
