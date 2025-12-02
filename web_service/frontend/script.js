@@ -1067,57 +1067,6 @@ async function downloadFile(url, filename) {
         }
         
         return true;
-        
-        // 以下代码已废弃：不再使用Web Share API（因为需要等待整个文件下载）
-        /*
-        // 对于移动设备，小文件使用Web Share API（可以直接保存到相册）
-        // 大文件直接下载，避免长时间等待
-        if (isMobile && navigator.share && !useDirectDownload) {
-            try {
-                console.log('使用Web Share API（可保存到相册）...');
-                updateStatus('正在准备视频，请稍候...', 'processing');
-                
-                // 先获取文件
-                const response = await fetch(url);
-                if (!response.ok) {
-                    throw new Error(`下载失败: ${response.statusText}`);
-                }
-                
-                const blob = await response.blob();
-                const file = new File([blob], filename, { type: 'video/mp4' });
-                
-                // 使用Web Share API分享文件
-                // 在iOS上，"存储视频"通常是分享菜单中的第一个选项
-                if (navigator.canShare && navigator.canShare({ files: [file] })) {
-                    updateStatus('请选择"存储视频"保存到相册', 'info');
-                    await navigator.share({
-                        files: [file],
-                        title: '保存视频到相册',
-                        text: '请选择"存储视频"选项保存到相册'
-                    });
-                    console.log('✅ 已通过Web Share API分享');
-                    updateStatus('视频已保存到相册', 'success');
-                    return true;
-                } else {
-                    // 如果不支持分享文件，回退到直接下载
-                    console.log('Web Share API不支持文件分享，使用直接下载...');
-                }
-            } catch (shareError) {
-                // 如果用户取消分享，不报错
-                if (shareError.name === 'AbortError') {
-                    console.log('用户取消了分享');
-                    updateStatus('下载已取消', '');
-                    return false;
-                }
-                console.log('Web Share API失败，使用直接下载:', shareError);
-            }
-        }
-        
- else {
-            updateStatus('下载完成', 'success');
-        }
-        
-        return true;
     } catch (error) {
         console.error(`下载 ${filename} 失败:`, error);
         // 如果直接下载失败，尝试使用fetch+blob方式（备用方案）
