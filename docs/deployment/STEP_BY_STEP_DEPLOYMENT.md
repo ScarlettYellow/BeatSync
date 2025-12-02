@@ -54,12 +54,20 @@ ps aux | grep -E 'dpkg|apt'
 **然后执行修复：**
 
 ```bash
-sudo dpkg --configure -a
+# 设置非交互式环境（避免kdump-tools等包的交互式提示）
+export DEBIAN_FRONTEND=noninteractive
+
+# 如果遇到kdump-tools错误，先卸载它（不是必需的）
+sudo apt remove -y kdump-tools
+
+# 重新配置dpkg
+sudo -E dpkg --configure -a
 ```
 
-**如果遇到锁定错误**，参考：`docs/deployment/FIX_DPKG_LOCK.md`
+**如果遇到锁定错误**，参考：`docs/deployment/FIX_DPKG_LOCK.md`  
+**如果遇到kdump-tools错误**，参考：`docs/deployment/FIX_KDUMP_TOOLS.md`
 
-**预期输出**：无错误信息
+**预期输出**：无错误信息（或只有警告）
 
 ---
 
