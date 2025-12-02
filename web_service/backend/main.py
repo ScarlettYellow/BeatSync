@@ -904,13 +904,17 @@ async def preview_result(task_id: str, version: Optional[str] = None):
         raise HTTPException(status_code=404, detail="输出文件不存在")
     
     # 使用流式响应，支持在线播放（不设置attachment）
+    # FastAPI的FileResponse自动支持Range请求，这对手机端视频播放很重要
     return FileResponse(
         str(output_file),
         media_type='video/mp4',
         filename=filename,
         headers={
-            "Accept-Ranges": "bytes",  # 支持断点续传和流式播放
-            "Content-Disposition": f'inline; filename="{filename}"'  # inline表示在线播放，而不是下载
+            "Accept-Ranges": "bytes",  # 支持断点续传和流式播放（手机端必需）
+            "Content-Disposition": f'inline; filename="{filename}"',  # inline表示在线播放，而不是下载
+            "Cache-Control": "public, max-age=3600",  # 添加缓存，提升加载速度
+            "Access-Control-Allow-Origin": "*",  # 确保CORS支持（虽然已在中间件配置，但显式设置更安全）
+            "Access-Control-Expose-Headers": "Content-Range, Accept-Ranges"  # 暴露Range相关头部
         }
     )
 

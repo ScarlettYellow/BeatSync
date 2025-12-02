@@ -35,6 +35,28 @@
             height: auto;
             display: block;
             outline: none;
+            background: #000;
+        }
+        
+        /* 加载状态 */
+        .loading-container {
+            color: white;
+            text-align: center;
+            padding: 50px 20px;
+        }
+        
+        /* 错误状态 */
+        .error-container {
+            color: white;
+            text-align: center;
+            padding: 30px 20px;
+        }
+        
+        .error-container button,
+        .error-container a {
+            min-height: 44px;
+            display: inline-block;
+            margin: 5px;
         }
         
         .controls {
@@ -94,23 +116,131 @@
         const videoUrl = urlParams.get('url');
         const videoTitle = urlParams.get('title') || '视频预览';
         
+        // 加载状态
+        let isLoading = true;
+        let loadError = null;
+        
+        // 显示加载状态
+        function showLoading() {
+            const videoContainer = document.querySelector('.video-container');
+            videoContainer.innerHTML = `
+                <div style="color: white; text-align: center; padding: 50px;">
+                    <div style="font-size: 18px; margin-bottom: 20px;">正在加载视频...</div>
+                    <div style="font-size: 14px; color: #999;">请稍候</div>
+                </div>
+            `;
+        }
+        
+        // 显示错误信息
+        function showError(error, videoUrl) {
+            const videoContainer = document.querySelector('.video-container');
+            const errorCode = error?.code || 'UNKNOWN';
+            const errorMessage = error?.message || '未知错误';
+            
+            let errorDetail = '';
+            if (errorCode === 4) {
+                errorDetail = '视频格式不支持或文件损坏';
+            } else if (errorCode === 2) {
+                errorDetail = '网络连接问题，请检查网络';
+            } else if (errorCode === 3) {
+                errorDetail = '视频解码失败，可能是编码格式问题';
+            } else {
+                errorDetail = '请检查网络连接或稍后重试';
+            }
+            
+            videoContainer.innerHTML = `
+                <div style="color: white; text-align: center; padding: 30px;">
+                    <div style="font-size: 18px; margin-bottom: 20px; color: #ff6b6b;">视频加载失败</div>
+                    <div style="font-size: 14px; color: #999; margin-bottom: 30px; line-height: 1.6;">
+                        ${errorDetail}<br>
+                        <span style="font-size: 12px; color: #666;">错误代码: ${errorCode}</span>
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 15px; align-items: center;">
+                        <button id="retry-btn" style="background-color: #007AFF; color: white; border: none; padding: 12px 24px; border-radius: 4px; font-size: 16px; cursor: pointer; min-height: 44px;">
+                            重试
+                        </button>
+                        <a href="${videoUrl}" download="${videoTitle}.mp4" style="background-color: #4CAF50; color: white; border: none; padding: 12px 24px; border-radius: 4px; font-size: 16px; text-decoration: none; display: inline-block; min-height: 44px; line-height: 20px;">
+                            下载视频
+                        </a>
+                    </div>
+                </div>
+            `;
+            
+            // 重试按钮
+            const retryBtn = document.getElementById('retry-btn');
+            if (retryBtn) {
+                retryBtn.onclick = () => {
+                    location.reload();
+                };
+            }
+        }
+        
         if (!videoUrl) {
-            document.body.innerHTML = '<div style="color: white; text-align: center; padding: 50px;">错误：未提供视频地址</div>';
+            showError({ code: 'NO_URL', message: '未提供视频地址' });
         } else {
             const videoPlayer = document.getElementById('video-player');
             const downloadLink = document.getElementById('download-link');
             const titleElement = document.getElementById('video-title');
             
-            // 设置视频源
-            videoPlayer.src = videoUrl;
+            // 设置标题和下载链接
             titleElement.textContent = videoTitle;
             downloadLink.href = videoUrl;
             downloadLink.download = videoTitle + '.mp4';
             
+            // 视频加载事件
+            videoPlayer.addEventListener('loadstart', () => {
+                console.log('开始加载视频...');
+                isLoading = true;
+            });
+            
+            videoPlayer.addEventListener('loadedmetadata', () => {
+                console.log('视频元数据加载完成');
+                isLoading = false;
+            });
+            
+            videoPlayer.addEventListener('canplay', () => {
+                console.log('视频可以播放');
+                isLoading = false;
+            });
+            
+            videoPlayer.addEventListener('canplaythrough', () => {
+                console.log('视频可以完整播放');
+                isLoading = false;
+            });
+            
             // 视频加载错误处理
             videoPlayer.addEventListener('error', (e) => {
-                console.error('视频加载错误:', e);
-                document.body.innerHTML = '<div style="color: white; text-align: center; padding: 50px;">视频加载失败，请检查网络连接或稍后重试</div>';
+                isLoading = false;
+                const error = videoPlayer.error;
+                console.error('视频加载错误:', {
+                    code: error?.code,
+                    message: error?.message,
+                    error: error
+                });
+                
+                // 显示详细错误信息
+                showError(error, videoUrl);
+            });
+            
+            // 设置视频源（使用preload优化）
+            videoPlayer.preload = 'metadata'; // 先加载元数据
+            videoPlayer.src = videoUrl;
+            
+            // 添加超时检测（30秒）
+            const loadTimeout = setTimeout(() => {
+                if (isLoading) {
+                    console.error('视频加载超时');
+                    showError({ code: 'TIMEOUT', message: '加载超时' }, videoUrl);
+                }
+            }, 30000);
+            
+            // 清除超时
+            videoPlayer.addEventListener('loadedmetadata', () => {
+                clearTimeout(loadTimeout);
+            });
+            
+            videoPlayer.addEventListener('error', () => {
+                clearTimeout(loadTimeout);
             });
         }
     </script>
