@@ -153,26 +153,23 @@ async function handleFileSelect(event, fileType) {
     await uploadFile(file, fileType);
 }
 
-// 检查后端服务是否可用
-async function checkBackendHealth() {
+// 检查后端服务是否可用（支持渐进式超时和重试）
+async function checkBackendHealth(retryCount = 0) {
     const healthUrl = `${API_BASE_URL}/api/health`;
     const controller = new AbortController();
     
-    // 检测浏览器类型，不同浏览器可能需要不同的超时时间
-    const userAgent = navigator.userAgent.toLowerCase();
-    const isQuark = userAgent.includes('quark') || userAgent.includes('夸克');
+    // 检测网络类型和设备类型
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     
-    // 夸克浏览器可能需要更长的超时时间，或者使用不同的策略
-    // 手机网络（特别是移动数据）可能比WiFi慢，需要更长的超时时间
-    let timeoutMs = 30000; // 默认30秒超时
+    // 渐进式超时策略：首次尝试较短超时，重试时增加超时时间
+    // 这样可以快速响应正常情况，同时给慢速网络更多机会
+    const timeoutStrategies = [
+        20000,  // 第一次：20秒（快速检测正常情况）
+        35000,  // 第二次：35秒（给慢速网络更多时间）
+        45000   // 第三次：45秒（最大超时，适应极端情况）
+    ];
     
-    // 如果是夸克浏览器，增加超时时间到45秒
-    if (isQuark) {
-        timeoutMs = 45000; // 夸克浏览器可能需要更长时间
-        console.log('检测到夸克浏览器，使用45秒超时');
-    }
-    
+    const timeoutMs = timeoutStrategies[Math.min(retryCount, timeoutStrategies.length - 1)];
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
     
     try {
@@ -180,11 +177,10 @@ async function checkBackendHealth() {
         const response = await fetch(healthUrl, {
             method: 'GET',
             signal: controller.signal,
-            // 添加超时提示
             headers: {
                 'Cache-Control': 'no-cache'
             },
-            // 添加mode和credentials，确保跨域请求正常
+            // 确保跨域请求正常
             mode: 'cors',
             credentials: 'omit'
         });
@@ -192,7 +188,7 @@ async function checkBackendHealth() {
         const elapsed = Date.now() - startTime;
         
         if (response.ok) {
-            console.log(`✅ 后端健康检查成功 (耗时${elapsed}ms)`);
+            console.log(`✅ 后端健康检查成功 (耗时${elapsed}ms${retryCount > 0 ? `, 重试${retryCount}次` : ''})`);
             return true;
         } else {
             console.warn(`⚠️ 后端健康检查返回非200状态: ${response.status}`);
@@ -200,26 +196,44 @@ async function checkBackendHealth() {
         }
     } catch (fetchError) {
         clearTimeout(timeoutId);
-        // AbortError是预期的超时错误，静默处理
+        
+        // AbortError是预期的超时错误
         if (fetchError.name === 'AbortError') {
             const timeoutSeconds = Math.floor(timeoutMs / 1000);
-            if (isQuark) {
-                console.log(`⏱️ 后端健康检查超时（${timeoutSeconds}秒内无响应）- 夸克浏览器`);
-            } else if (isMobile) {
-                console.log(`⏱️ 后端健康检查超时（${timeoutSeconds}秒内无响应）- 手机网络可能较慢`);
-            } else {
-                console.log(`⏱️ 后端健康检查超时（${timeoutSeconds}秒内无响应）`);
+            console.log(`⏱️ 后端健康检查超时（${timeoutSeconds}秒内无响应）${retryCount > 0 ? `, 第${retryCount + 1}次尝试` : ''}`);
+            
+            // 如果还有重试机会，自动重试
+            if (retryCount < timeoutStrategies.length - 1) {
+                console.log(`🔄 自动重试健康检查（${retryCount + 1}/${timeoutStrategies.length - 1}）...`);
+                // 等待1秒后重试
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                return await checkBackendHealth(retryCount + 1);
             }
+            
             return false;
         }
-        // 其他错误（如网络错误、CORS错误等）才记录
+        
+        // 其他错误（如网络错误、CORS错误等）
         if (fetchError.message && !fetchError.message.includes('aborted')) {
             console.warn('⚠️ 后端健康检查失败:', fetchError.message);
+            
             // 如果是CORS错误，提供更详细的提示
             if (fetchError.message.includes('CORS') || fetchError.message.includes('cors')) {
                 console.warn('⚠️ 可能是CORS问题，请检查后端CORS配置');
             }
+            
+            // 如果是网络错误，尝试重试一次
+            if (retryCount === 0 && (
+                fetchError.message.includes('Failed to fetch') ||
+                fetchError.message.includes('NetworkError') ||
+                fetchError.message.includes('network')
+            )) {
+                console.log('🔄 网络错误，自动重试一次...');
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                return await checkBackendHealth(retryCount + 1);
+            }
         }
+        
         return false;
     }
 }
@@ -238,9 +252,8 @@ async function uploadFile(file, fileType, retryCount = 0) {
         if (!backendAvailable) {
             // 检测是否为手机设备
             const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-            const timeoutSeconds = 30;
             
-            let errorMsg = `后端服务不可用（${timeoutSeconds}秒内无响应）。\n\n`;
+            let errorMsg = `后端服务不可用（已尝试多次连接）。\n\n`;
             errorMsg += `可能原因：\n`;
             errorMsg += `1. 网络连接问题（请检查网络，手机网络可能比WiFi慢）\n`;
             if (isMobile) {
@@ -265,9 +278,10 @@ async function uploadFile(file, fileType, retryCount = 0) {
             retryBtn.onclick = async () => {
                 retryBtn.disabled = true;
                 retryBtn.textContent = '重试中...';
-                updateStatus('正在检查后端服务...', 'processing');
+                updateStatus('正在检查后端服务（已自动重试多次）...', 'processing');
                 
-                const available = await checkBackendHealth();
+                // 重新检查（会使用渐进式超时和自动重试）
+                const available = await checkBackendHealth(0);
                 if (available) {
                     retryBtn.remove();
                     // 继续上传流程：重新调用uploadFile
