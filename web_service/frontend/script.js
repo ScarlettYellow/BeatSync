@@ -1039,9 +1039,15 @@ async function downloadFile(url, filename) {
             }
         }
         
-        // 直接下载方式（适用于桌面浏览器和移动浏览器）
+        // 直接下载方式（适用于桌面浏览器和移动浏览器，或大文件）
         // 注意：由于浏览器安全限制，无法直接保存到相册，需要用户手动操作
-        updateStatus('正在下载...', 'processing');
+        if (useDirectDownload) {
+            updateStatus('正在开始下载...', 'processing');
+        } else {
+            updateStatus('正在下载...', 'processing');
+        }
+        
+        // 立即创建下载链接并触发，不等待
         const a = document.createElement('a');
         a.href = url;
         a.download = filename;
@@ -1054,17 +1060,25 @@ async function downloadFile(url, filename) {
             document.body.removeChild(a);
         }, 100);
         
-        console.log('开始下载:', filename);
+        console.log('开始下载:', filename, useDirectDownload ? '(直接下载)' : '(Web Share API失败，降级为直接下载)');
         
         // 如果是移动设备，提示用户如何保存到相册
         if (isMobile) {
             setTimeout(() => {
                 if (isIOS) {
-                    updateStatus('下载完成。请在"文件"应用中长按视频，选择"存储视频"保存到相册', 'info');
+                    if (useDirectDownload) {
+                        updateStatus('下载已开始。下载完成后，请在"文件"应用中长按视频，选择"存储视频"保存到相册', 'info');
+                    } else {
+                        updateStatus('下载完成。请在"文件"应用中长按视频，选择"存储视频"保存到相册', 'info');
+                    }
                 } else {
-                    updateStatus('下载完成。请在文件管理器中找到视频，移动到相册文件夹', 'info');
+                    if (useDirectDownload) {
+                        updateStatus('下载已开始。下载完成后，请在文件管理器中找到视频，移动到相册文件夹', 'info');
+                    } else {
+                        updateStatus('下载完成。请在文件管理器中找到视频，移动到相册文件夹', 'info');
+                    }
                 }
-            }, 1000);
+            }, useDirectDownload ? 500 : 2000); // 大文件立即提示，小文件等待2秒
         } else {
             updateStatus('下载完成', 'success');
         }
