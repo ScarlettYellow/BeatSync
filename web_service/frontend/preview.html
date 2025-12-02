@@ -224,6 +224,21 @@
             
             // 设置视频源（使用preload优化）
             videoPlayer.preload = 'metadata'; // 先加载元数据
+            
+            // 添加source标签，确保正确的MIME类型和编码提示
+            // 移除旧的source（如果有）
+            const oldSource = videoPlayer.querySelector('source');
+            if (oldSource) {
+                oldSource.remove();
+            }
+            
+            // 创建新的source元素
+            const source = document.createElement('source');
+            source.src = videoUrl;
+            source.type = 'video/mp4; codecs="avc1.42E01E, mp4a.40.2"'; // H.264 + AAC，确保兼容性
+            videoPlayer.appendChild(source);
+            
+            // 也设置src作为备用
             videoPlayer.src = videoUrl;
             
             // 添加超时检测（30秒）

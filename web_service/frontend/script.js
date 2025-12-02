@@ -972,16 +972,33 @@ function updateDownloadButton(result) {
     }
 }
 
-// 下载单个文件（优先保存到相册）
+// 下载单个文件（优化：大文件直接下载，小文件使用Web Share API）
 async function downloadFile(url, filename) {
     try {
         // 检测是否为移动设备
         const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
         const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
         
-        // 对于移动设备，优先使用Web Share API（可以直接保存到相册）
-        // 这是最接近"默认保存到相册"的方式，用户只需在分享菜单中选择"存储视频"
-        if (isMobile && navigator.share) {
+        // 先获取文件大小（HEAD请求，快速）
+        let fileSize = 0;
+        try {
+            const headResponse = await fetch(url, { method: 'HEAD' });
+            if (headResponse.ok) {
+                const contentLength = headResponse.headers.get('Content-Length');
+                if (contentLength) {
+                    fileSize = parseInt(contentLength, 10);
+                }
+            }
+        } catch (e) {
+            console.warn('无法获取文件大小:', e);
+        }
+        
+        const fileSizeMB = fileSize / (1024 * 1024);
+        const useDirectDownload = fileSizeMB > 10; // 大于10MB直接下载
+        
+        // 对于移动设备，小文件使用Web Share API（可以直接保存到相册）
+        // 大文件直接下载，避免长时间等待
+        if (isMobile && navigator.share && !useDirectDownload) {
             try {
                 console.log('使用Web Share API（可保存到相册）...');
                 updateStatus('正在准备视频，请稍候...', 'processing');
