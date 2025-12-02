@@ -15,24 +15,41 @@ from contextlib import contextmanager
 
 # 配置日志
 LOG_DIR = Path(__file__).parent.parent.parent / "outputs" / "logs"
-LOG_DIR.mkdir(parents=True, exist_ok=True)
+try:
+    LOG_DIR.mkdir(parents=True, exist_ok=True)
+    # 尝试创建日志文件以检查权限
+    test_file = LOG_DIR / ".test_write"
+    test_file.touch()
+    test_file.unlink()
+    log_file_available = True
+except (PermissionError, OSError) as e:
+    # 如果无法创建目录或写入文件，只使用控制台输出
+    log_file_available = False
+    import warnings
+    warnings.warn(f"无法写入日志文件到 {LOG_DIR}，将只使用控制台输出。错误: {e}")
 
 # 创建性能日志记录器
 perf_logger = logging.getLogger("performance")
 perf_logger.setLevel(logging.INFO)
-
-# 创建文件处理器（按日期分割）
-log_file = LOG_DIR / f"performance_{datetime.now().strftime('%Y%m%d')}.log"
-file_handler = logging.FileHandler(log_file, encoding='utf-8')
-file_handler.setLevel(logging.INFO)
 
 # 创建格式器
 formatter = logging.Formatter(
     '%(asctime)s | %(levelname)s | %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S'
 )
-file_handler.setFormatter(formatter)
-perf_logger.addHandler(file_handler)
+
+# 只有在可以写入文件时才添加文件处理器
+if log_file_available:
+    try:
+        log_file = LOG_DIR / f"performance_{datetime.now().strftime('%Y%m%d')}.log"
+        file_handler = logging.FileHandler(log_file, encoding='utf-8')
+        file_handler.setLevel(logging.INFO)
+        file_handler.setFormatter(formatter)
+        perf_logger.addHandler(file_handler)
+    except (PermissionError, OSError) as e:
+        # 如果创建文件处理器失败，只使用控制台输出
+        import warnings
+        warnings.warn(f"无法创建日志文件处理器，将只使用控制台输出。错误: {e}")
 
 # 同时输出到控制台
 console_handler = logging.StreamHandler()
