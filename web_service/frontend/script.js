@@ -149,7 +149,9 @@ async function handleFileSelect(event, fileType) {
 async function checkBackendHealth() {
     const healthUrl = `${API_BASE_URL}/api/health`;
     const controller = new AbortController();
-    const timeoutMs = 15000; // 15秒超时（从5秒增加到15秒，适应跨域访问延迟）
+    // 增加超时时间到30秒，适应手机网络延迟
+    // 手机网络（特别是移动数据）可能比WiFi慢，需要更长的超时时间
+    const timeoutMs = 30000; // 30秒超时
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
     
     try {
@@ -199,13 +201,22 @@ async function uploadFile(file, fileType) {
         const backendAvailable = await checkBackendHealth();
         
         if (!backendAvailable) {
-            const errorMsg = `后端服务不可用（15秒内无响应）。\n\n` +
-                `可能原因：\n` +
-                `1. 网络连接问题（请检查网络）\n` +
-                `2. 防火墙未开放8000端口（请在腾讯云控制台配置防火墙）\n` +
-                `3. 后端服务未运行（请检查服务器状态）\n\n` +
-                `手动检查：访问 ${API_BASE_URL}/api/health 查看服务状态\n` +
-                `如果健康检查正常，可能是CORS或网络延迟问题，请刷新页面重试。`;
+            // 检测是否为手机设备
+            const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+            const timeoutSeconds = 30;
+            
+            let errorMsg = `后端服务不可用（${timeoutSeconds}秒内无响应）。\n\n`;
+            errorMsg += `可能原因：\n`;
+            errorMsg += `1. 网络连接问题（请检查网络，手机网络可能比WiFi慢）\n`;
+            if (isMobile) {
+                errorMsg += `2. 手机网络延迟较高（建议使用WiFi网络）\n`;
+                errorMsg += `3. 后端服务未运行（请检查服务器状态）\n\n`;
+            } else {
+                errorMsg += `2. 防火墙配置问题（请检查服务器防火墙）\n`;
+                errorMsg += `3. 后端服务未运行（请检查服务器状态）\n\n`;
+            }
+            errorMsg += `手动检查：访问 ${API_BASE_URL}/api/health 查看服务状态\n`;
+            errorMsg += `如果健康检查正常，可能是网络延迟问题，请刷新页面重试。`;
             throw new Error(errorMsg);
         }
         
