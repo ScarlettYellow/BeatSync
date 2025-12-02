@@ -157,9 +157,22 @@ async function handleFileSelect(event, fileType) {
 async function checkBackendHealth() {
     const healthUrl = `${API_BASE_URL}/api/health`;
     const controller = new AbortController();
-    // 增加超时时间到30秒，适应手机网络延迟
+    
+    // 检测浏览器类型，不同浏览器可能需要不同的超时时间
+    const userAgent = navigator.userAgent.toLowerCase();
+    const isQuark = userAgent.includes('quark') || userAgent.includes('夸克');
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    
+    // 夸克浏览器可能需要更长的超时时间，或者使用不同的策略
     // 手机网络（特别是移动数据）可能比WiFi慢，需要更长的超时时间
-    const timeoutMs = 30000; // 30秒超时
+    let timeoutMs = 30000; // 默认30秒超时
+    
+    // 如果是夸克浏览器，增加超时时间到45秒
+    if (isQuark) {
+        timeoutMs = 45000; // 夸克浏览器可能需要更长时间
+        console.log('检测到夸克浏览器，使用45秒超时');
+    }
+    
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
     
     try {
@@ -170,7 +183,10 @@ async function checkBackendHealth() {
             // 添加超时提示
             headers: {
                 'Cache-Control': 'no-cache'
-            }
+            },
+            // 添加mode和credentials，确保跨域请求正常
+            mode: 'cors',
+            credentials: 'omit'
         });
         clearTimeout(timeoutId);
         const elapsed = Date.now() - startTime;
@@ -186,18 +202,23 @@ async function checkBackendHealth() {
         clearTimeout(timeoutId);
         // AbortError是预期的超时错误，静默处理
         if (fetchError.name === 'AbortError') {
-            const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
             const timeoutSeconds = Math.floor(timeoutMs / 1000);
-            if (isMobile) {
+            if (isQuark) {
+                console.log(`⏱️ 后端健康检查超时（${timeoutSeconds}秒内无响应）- 夸克浏览器`);
+            } else if (isMobile) {
                 console.log(`⏱️ 后端健康检查超时（${timeoutSeconds}秒内无响应）- 手机网络可能较慢`);
             } else {
                 console.log(`⏱️ 后端健康检查超时（${timeoutSeconds}秒内无响应）`);
             }
             return false;
         }
-        // 其他错误（如网络错误）才记录
+        // 其他错误（如网络错误、CORS错误等）才记录
         if (fetchError.message && !fetchError.message.includes('aborted')) {
             console.warn('⚠️ 后端健康检查失败:', fetchError.message);
+            // 如果是CORS错误，提供更详细的提示
+            if (fetchError.message.includes('CORS') || fetchError.message.includes('cors')) {
+                console.warn('⚠️ 可能是CORS问题，请检查后端CORS配置');
+            }
         }
         return false;
     }
@@ -972,30 +993,69 @@ function updateDownloadButton(result) {
     }
 }
 
-// 下载单个文件（优化：大文件直接下载，小文件使用Web Share API）
+// 下载单个文件（优化：立即响应，不等待）
 async function downloadFile(url, filename) {
     try {
         // 检测是否为移动设备
         const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
         const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
         
-        // 先获取文件大小（HEAD请求，快速）
-        let fileSize = 0;
-        try {
-            const headResponse = await fetch(url, { method: 'HEAD' });
-            if (headResponse.ok) {
-                const contentLength = headResponse.headers.get('Content-Length');
-                if (contentLength) {
-                    fileSize = parseInt(contentLength, 10);
+        // 立即开始下载，不等待HEAD请求（避免延迟）
+        // 对于移动设备，如果支持Web Share API，可以在后台尝试（不阻塞下载）
+        let useWebShare = false;
+        if (isMobile && navigator.share) {
+            // 异步尝试获取文件大小（不阻塞下载）
+            const headPromise = fetch(url, { method: 'HEAD' }).catch(() => null);
+            headPromise.then(headResponse => {
+                if (headResponse && headResponse.ok) {
+                    const contentLength = headResponse.headers.get('Content-Length');
+                    if (contentLength) {
+                        const fileSize = parseInt(contentLength, 10);
+                        const fileSizeMB = fileSize / (1024 * 1024);
+                        // 小文件（<5MB）可以考虑使用Web Share API，但不阻塞下载
+                        if (fileSizeMB < 5) {
+                            console.log('文件较小，可以考虑使用Web Share API');
+                        }
+                    }
                 }
-            }
-        } catch (e) {
-            console.warn('无法获取文件大小:', e);
+            }).catch(() => {});
         }
         
-        const fileSizeMB = fileSize / (1024 * 1024);
-        const useDirectDownload = fileSizeMB > 10; // 大于10MB直接下载
+        // 立即开始下载，不等待任何检查
+        updateStatus('正在开始下载...', 'processing');
         
+        // 立即创建下载链接并触发
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        a.style.display = 'none';
+        document.body.appendChild(a);
+        a.click();
+        
+        // 延迟清理，确保下载开始
+        setTimeout(() => {
+            document.body.removeChild(a);
+        }, 100);
+        
+        console.log('开始下载:', filename, '(立即响应)');
+        
+        // 如果是移动设备，提示用户如何保存到相册
+        if (isMobile) {
+            setTimeout(() => {
+                if (isIOS) {
+                    updateStatus('下载已开始。下载完成后，请在"文件"应用中长按视频，选择"存储视频"保存到相册', 'info');
+                } else {
+                    updateStatus('下载已开始。下载完成后，请在文件管理器中找到视频，移动到相册文件夹', 'info');
+                }
+            }, 500); // 立即提示
+        } else {
+            updateStatus('下载已开始', 'success');
+        }
+        
+        return true;
+        
+        // 以下代码已废弃：不再使用Web Share API（因为需要等待整个文件下载）
+        /*
         // 对于移动设备，小文件使用Web Share API（可以直接保存到相册）
         // 大文件直接下载，避免长时间等待
         if (isMobile && navigator.share && !useDirectDownload) {
@@ -1039,47 +1099,7 @@ async function downloadFile(url, filename) {
             }
         }
         
-        // 直接下载方式（适用于桌面浏览器和移动浏览器，或大文件）
-        // 注意：由于浏览器安全限制，无法直接保存到相册，需要用户手动操作
-        if (useDirectDownload) {
-            updateStatus('正在开始下载...', 'processing');
-        } else {
-            updateStatus('正在下载...', 'processing');
-        }
-        
-        // 立即创建下载链接并触发，不等待
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        a.style.display = 'none';
-        document.body.appendChild(a);
-        a.click();
-        
-        // 延迟清理，确保下载开始
-        setTimeout(() => {
-            document.body.removeChild(a);
-        }, 100);
-        
-        console.log('开始下载:', filename, useDirectDownload ? '(直接下载)' : '(Web Share API失败，降级为直接下载)');
-        
-        // 如果是移动设备，提示用户如何保存到相册
-        if (isMobile) {
-            setTimeout(() => {
-                if (isIOS) {
-                    if (useDirectDownload) {
-                        updateStatus('下载已开始。下载完成后，请在"文件"应用中长按视频，选择"存储视频"保存到相册', 'info');
-                    } else {
-                        updateStatus('下载完成。请在"文件"应用中长按视频，选择"存储视频"保存到相册', 'info');
-                    }
-                } else {
-                    if (useDirectDownload) {
-                        updateStatus('下载已开始。下载完成后，请在文件管理器中找到视频，移动到相册文件夹', 'info');
-                    } else {
-                        updateStatus('下载完成。请在文件管理器中找到视频，移动到相册文件夹', 'info');
-                    }
-                }
-            }, useDirectDownload ? 500 : 2000); // 大文件立即提示，小文件等待2秒
-        } else {
+ else {
             updateStatus('下载完成', 'success');
         }
         
