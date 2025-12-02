@@ -3,10 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- 防止浏览器缓存，确保总是加载最新版本 -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>BeatSync 视频音轨自动对齐和替换</title>
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <link rel="icon" type="image/x-icon" href="favicon.ico">
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css?v=20251202">
 </head>
 <body>
     <div class="container">
@@ -104,7 +108,8 @@
         </div>
     </div>
     
-    <script src="script.js"></script>
+    <!-- 添加版本号参数，每次更新时更改版本号，强制浏览器重新加载 -->
+    <script src="script.js?v=20251202"></script>
 </body>
 </html>
 
