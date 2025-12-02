@@ -50,6 +50,19 @@ echo ""
 # 创建日志目录
 mkdir -p ../outputs/logs
 
+# 检查并停止可能存在的旧服务
+echo "🔍 检查端口占用..."
+if lsof -i :8000 >/dev/null 2>&1; then
+    echo "⚠️  端口8000被占用，正在停止旧服务..."
+    ps aux | grep "uvicorn main:app" | grep -v grep | awk '{print $2}' | xargs kill 2>/dev/null
+    sleep 2
+fi
+if lsof -i :8080 >/dev/null 2>&1; then
+    echo "⚠️  端口8080被占用，正在停止旧服务..."
+    ps aux | grep "http.server 8080" | grep -v grep | awk '{print $2}' | xargs kill 2>/dev/null
+    sleep 2
+fi
+
 # 启动后端（后台运行）
 echo "🚀 启动后端服务..."
 cd backend
