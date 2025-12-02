@@ -178,7 +178,13 @@ async function checkBackendHealth() {
         clearTimeout(timeoutId);
         // AbortError是预期的超时错误，静默处理
         if (fetchError.name === 'AbortError') {
-            console.log(`⏱️ 后端健康检查超时（${timeoutMs}ms内无响应）`);
+            const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+            const timeoutSeconds = Math.floor(timeoutMs / 1000);
+            if (isMobile) {
+                console.log(`⏱️ 后端健康检查超时（${timeoutSeconds}秒内无响应）- 手机网络可能较慢`);
+            } else {
+                console.log(`⏱️ 后端健康检查超时（${timeoutSeconds}秒内无响应）`);
+            }
             return false;
         }
         // 其他错误（如网络错误）才记录
