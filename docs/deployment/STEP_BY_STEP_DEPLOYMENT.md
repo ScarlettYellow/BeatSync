@@ -270,23 +270,178 @@ pwd
 
 **目的**：执行自动部署脚本，安装所有依赖和配置服务
 
+**重要提示**：
+- 部署脚本可能需要5-10分钟完成
+- 腾讯云"执行命令"功能默认超时时间为60秒
+- **推荐使用SSH直接登录执行**，避免超时问题
+- 如果必须使用"执行命令"功能，请使用**分步骤执行方式**（见下方）
+
+---
+
+#### 方式1：使用SSH执行（推荐，不受超时限制）
+
+**步骤1：使用SSH登录服务器**
 ```bash
-sudo bash scripts/deployment/deploy_to_tencent_cloud.sh
+ssh ubuntu@124.221.58.149
 ```
 
-**预期输出**：
+**步骤2：进入项目目录并执行部署脚本**
+```bash
+cd /opt/beatsync
+sudo nohup bash scripts/deployment/deploy_to_tencent_cloud.sh > /tmp/deploy.log 2>&1 &
 ```
-==========================================
-BeatSync 腾讯云服务器部署脚本
-==========================================
 
-步骤1: 更新系统...
-步骤2: 安装基础工具...
-步骤3: 检查Python版本...
-步骤4: 安装FFmpeg...
-...
-部署完成！
+**步骤3：查看执行进度**
+```bash
+tail -f /tmp/deploy.log
 ```
+
+**按 `Ctrl+C` 退出日志查看，脚本会继续在后台运行**
+
+**步骤4：检查脚本是否还在运行**
+```bash
+ps aux | grep deploy_to_tencent_cloud
+```
+
+---
+
+#### 方式2：分步骤执行（适合"执行命令"功能）
+
+**如果必须使用"执行命令"功能，按以下步骤分步执行：**
+
+##### 步骤9.1：检查FFmpeg是否已安装
+
+```bash
+ffmpeg -version
+```
+
+**如果已安装，跳过步骤9.2，直接执行步骤9.3**
+
+**如果未安装，执行步骤9.2：**
+
+##### 步骤9.2：安装FFmpeg
+
+```bash
+sudo apt install -y ffmpeg
+```
+
+**预期输出**：下载并安装FFmpeg及其依赖包（可能需要2-5分钟）
+
+**验证**：
+```bash
+ffmpeg -version | head -1
+```
+
+---
+
+##### 步骤9.3：进入项目目录
+
+```bash
+cd /opt/beatsync
+```
+
+**验证**：
+```bash
+pwd
+# 应该显示：/opt/beatsync
+```
+
+---
+
+##### 步骤9.4：安装Python依赖
+
+```bash
+cd /opt/beatsync/web_service/backend
+pip3 install -r requirements.txt
+```
+
+**预期输出**：下载并安装Python包（可能需要1-3分钟）
+
+**验证**：
+```bash
+pip3 list | grep -E "(fastapi|uvicorn|librosa)"
+```
+
+---
+
+##### 步骤9.5：创建必要目录
+
+```bash
+cd /opt/beatsync
+sudo mkdir -p web_uploads web_outputs logs outputs/web_uploads outputs/web_outputs
+sudo chmod 755 web_uploads web_outputs logs outputs/web_uploads outputs/web_outputs
+```
+
+**验证**：
+```bash
+ls -la /opt/beatsync | grep -E "(web_uploads|web_outputs|logs)"
+```
+
+---
+
+##### 步骤9.6：创建systemd服务
+
+```bash
+sudo tee /etc/systemd/system/beatsync.service > /dev/null << 'EOF'
+[Unit]
+Description=BeatSync Web Service Backend
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/beatsync/web_service/backend
+Environment="PATH=/usr/local/bin:/usr/bin:/bin"
+ExecStart=/usr/bin/python3 -m uvicorn main:app --host 0.0.0.0 --port 8000
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+EOF
+```
+
+**验证**：
+```bash
+cat /etc/systemd/system/beatsync.service
+```
+
+---
+
+##### 步骤9.7：启用并启动服务
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable beatsync
+sudo systemctl restart beatsync
+```
+
+**验证**：
+```bash
+sudo systemctl status beatsync
+```
+
+**预期输出**：显示服务状态为"active (running)"
+
+---
+
+##### 步骤9.8：检查服务状态
+
+```bash
+sleep 2
+sudo systemctl is-active beatsync && echo "✅ 服务运行正常" || echo "❌ 服务启动失败"
+```
+
+**如果失败，查看日志**：
+```bash
+sudo journalctl -u beatsync -n 20
+```
+
+---
+
+**如果执行过程中遇到超时问题，请参考**：`docs/deployment/FIX_DEPLOYMENT_TIMEOUT.md`
 
 **这个脚本会自动完成：**
 - 安装Python依赖
