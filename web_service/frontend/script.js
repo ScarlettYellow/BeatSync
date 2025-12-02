@@ -203,8 +203,8 @@ async function checkBackendHealth() {
     }
 }
 
-// 上传文件
-async function uploadFile(file, fileType) {
+// 上传文件（支持重试）
+async function uploadFile(file, fileType, retryCount = 0) {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('file_type', fileType);
