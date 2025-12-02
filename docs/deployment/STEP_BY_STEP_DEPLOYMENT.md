@@ -67,13 +67,45 @@ sudo dpkg --configure -a
 
 **目的**：更新系统包列表和已安装的包
 
+**步骤2.1：更新包列表**
+
 ```bash
 sudo apt update
 ```
 
 **等待完成后，继续：**
 
+**步骤2.2：修复dpkg状态（如果遇到错误）**
+
+如果执行 `apt upgrade` 时出现错误：
+```
+E: dpkg was interrupted, you must manually run 'sudo dpkg --configure -a' to correct the
+```
+
+先执行修复命令：
+
 ```bash
+sudo dpkg --configure -a
+```
+
+**等待完成后，继续：**
+
+**步骤2.3：升级系统包**
+
+```bash
+sudo apt upgrade -y
+```
+
+**如果仍然失败，尝试：**
+
+```bash
+# 修复dpkg状态
+sudo dpkg --configure -a
+
+# 修复损坏的包
+sudo apt --fix-broken install
+
+# 再次升级
 sudo apt upgrade -y
 ```
 
