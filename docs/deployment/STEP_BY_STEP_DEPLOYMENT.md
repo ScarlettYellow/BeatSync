@@ -177,7 +177,16 @@ sudo rm -rf beatsync
 
 **目的**：从GitHub克隆最新代码
 
+**重要**：确保在 `/opt` 目录下执行此命令
+
 ```bash
+# 确保在 /opt 目录
+cd /opt
+
+# 如果 beatsync 目录已存在，先删除
+sudo rm -rf beatsync
+
+# 克隆项目代码
 sudo git clone https://github.com/scarlettyellow/BeatSync.git beatsync
 ```
 
@@ -191,16 +200,35 @@ Receiving objects: 100% ...
 **验证：**
 
 ```bash
+# 检查目录是否存在
 ls -la /opt/beatsync
 ```
 
 **预期输出**：显示项目文件列表
+
+**如果克隆失败，检查：**
+1. 网络连接是否正常
+2. GitHub是否可以访问
+3. 目录权限是否正确
 
 ---
 
 ### 步骤7：设置目录权限
 
 **目的**：将项目目录的所有者设置为ubuntu用户
+
+**重要**：确保步骤6已成功执行，目录已创建
+
+**先验证目录是否存在：**
+
+```bash
+# 检查目录是否存在
+ls -la /opt/ | grep beatsync
+```
+
+**如果目录不存在，返回步骤6重新克隆。**
+
+**如果目录存在，执行：**
 
 ```bash
 sudo chown -R ubuntu:ubuntu /opt/beatsync
@@ -213,6 +241,10 @@ ls -ld /opt/beatsync
 ```
 
 **预期输出**：所有者应该是ubuntu
+
+**如果仍然失败，检查：**
+1. 目录是否真的存在：`ls -la /opt/`
+2. 是否有权限访问：`sudo ls -la /opt/`
 
 ---
 
