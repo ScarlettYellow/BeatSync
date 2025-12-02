@@ -329,15 +329,46 @@ h1 {
         padding: 30px 15px;
     }
     
+    /* 手机端按钮优化：最小触摸区域44x44px（Apple HIG标准） */
+    .upload-btn,
     .process-btn,
     .download-btn,
     .preview-btn {
         width: 95%;
+        min-height: 44px;
+        padding: 12px 20px;
+        font-size: 16px; /* 防止iOS自动缩放 */
+        -webkit-tap-highlight-color: rgba(0, 122, 255, 0.3); /* iOS触摸反馈 */
     }
     
     .video-preview-container video {
         max-width: 100%;
         max-height: 300px;
+    }
+    
+    /* 手机端错误提示优化 */
+    .status-text.error {
+        font-size: 14px;
+        line-height: 1.5;
+        padding: 10px;
+        background-color: #fff3cd;
+        border-radius: 4px;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+        max-height: 200px;
+        overflow-y: auto;
+        text-align: left;
+    }
+    
+    /* 手机端信息提示优化 */
+    .status-text.info {
+        font-size: 14px;
+        line-height: 1.5;
+        padding: 10px;
+        background-color: #d1ecf1;
+        border-radius: 4px;
+        white-space: pre-wrap;
+        word-wrap: break-word;
     }
 }
 

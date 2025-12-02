@@ -78,6 +78,14 @@ document.addEventListener('DOMContentLoaded', () => {
     setupFileInputs();
     setupDragAndDrop();
     updateProcessButton();
+    
+    // 手机端优化：隐藏拖拽提示
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    if (isMobile) {
+        document.querySelectorAll('.upload-hint').forEach(hint => {
+            hint.style.display = 'none';
+        });
+    }
 });
 
 // 重置状态
@@ -222,7 +230,48 @@ async function uploadFile(file, fileType) {
                 errorMsg += `3. 后端服务未运行（请检查服务器状态）\n\n`;
             }
             errorMsg += `手动检查：访问 ${API_BASE_URL}/api/health 查看服务状态\n`;
-            errorMsg += `如果健康检查正常，可能是网络延迟问题，请刷新页面重试。`;
+            errorMsg += `如果健康检查正常，可能是网络延迟问题，请点击"重试"按钮。`;
+            
+            // 显示错误并添加重试按钮
+            updateStatus(errorMsg, 'error');
+            
+            // 创建重试按钮
+            const retryBtn = document.createElement('button');
+            retryBtn.textContent = '重试';
+            retryBtn.className = 'retry-btn';
+            retryBtn.style.cssText = 'margin-top: 15px; padding: 10px 20px; background-color: #007AFF; color: white; border: none; border-radius: 4px; font-size: 16px; cursor: pointer; min-height: 44px;';
+            
+            retryBtn.onclick = async () => {
+                retryBtn.disabled = true;
+                retryBtn.textContent = '重试中...';
+                updateStatus('正在检查后端服务...', 'processing');
+                
+                const available = await checkBackendHealth();
+                if (available) {
+                    retryBtn.remove();
+                    // 继续上传流程：重新调用uploadFile
+                    try {
+                        await uploadFile(file, fileType, retryCount + 1);
+                    } catch (error) {
+                        // 如果重试后仍然失败，显示错误
+                        updateStatus(`上传失败: ${error.message}`, 'error');
+                    }
+                } else {
+                    retryBtn.disabled = false;
+                    retryBtn.textContent = '重试';
+                    updateStatus(errorMsg, 'error');
+                }
+            };
+            
+            // 将重试按钮添加到状态区域
+            const statusSection = document.querySelector('.status-section');
+            // 移除旧的重试按钮（如果存在）
+            const oldRetryBtn = statusSection.querySelector('.retry-btn');
+            if (oldRetryBtn) {
+                oldRetryBtn.remove();
+            }
+            statusSection.appendChild(retryBtn);
+            
             throw new Error(errorMsg);
         }
         
