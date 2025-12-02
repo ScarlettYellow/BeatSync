@@ -75,6 +75,20 @@ echo ""
 # 等待用户中断
 trap "echo ''; echo '正在停止服务...'; kill $BACKEND_PID $FRONTEND_PID 2>/dev/null; echo '✅ 服务已停止'; exit" INT TERM
 
-# 保持脚本运行
-wait
+# 保持脚本运行，定期检查服务状态
+echo "服务正在运行中，按 Ctrl+C 停止..."
+while true; do
+    # 检查后端进程是否还在运行
+    if ! kill -0 $BACKEND_PID 2>/dev/null; then
+        echo "⚠️  后端服务已停止 (PID: $BACKEND_PID)"
+        break
+    fi
+    # 检查前端进程是否还在运行
+    if ! kill -0 $FRONTEND_PID 2>/dev/null; then
+        echo "⚠️  前端服务已停止 (PID: $FRONTEND_PID)"
+        break
+    fi
+    # 等待1秒后再次检查
+    sleep 1
+done
 
