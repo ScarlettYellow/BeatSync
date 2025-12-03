@@ -143,7 +143,7 @@
             
             let errorDetail = '';
             if (errorCode === 4) {
-                errorDetail = '视频格式不支持或文件损坏';
+                errorDetail = '视频格式不支持或文件损坏。可能原因：\n1. 视频文件是旧版本（未使用faststart优化）\n2. 视频编码格式不兼容\n3. 文件损坏\n\n建议：\n1. 重新处理视频（新视频已优化）\n2. 或直接下载视频在本地播放';
             } else if (errorCode === 2) {
                 errorDetail = '网络连接问题，请检查网络';
             } else if (errorCode === 3) {
@@ -221,8 +221,24 @@
                 console.error('视频加载错误:', {
                     code: error?.code,
                     message: error?.message,
-                    error: error
+                    error: error,
+                    networkState: videoPlayer.networkState,
+                    readyState: videoPlayer.readyState,
+                    src: videoPlayer.src,
+                    currentSrc: videoPlayer.currentSrc
                 });
+                
+                // 如果是错误代码4（格式不支持），尝试移除source标签，直接使用src
+                if (error?.code === 4) {
+                    console.log('🔄 检测到格式不支持错误，尝试移除source标签，直接使用src...');
+                    const source = videoPlayer.querySelector('source');
+                    if (source) {
+                        source.remove();
+                    }
+                    videoPlayer.src = videoUrl;
+                    videoPlayer.load(); // 重新加载
+                    return; // 不显示错误，等待重新加载结果
+                }
                 
                 // 显示详细错误信息
                 showError(error, videoUrl);
@@ -239,13 +255,13 @@
                 oldSource.remove();
             }
             
-            // 创建新的source元素
+            // 创建新的source元素（使用简单的MIME类型，避免codecs导致兼容性问题）
             const source = document.createElement('source');
             source.src = videoUrl;
-            source.type = 'video/mp4; codecs="avc1.42E01E, mp4a.40.2"'; // H.264 + AAC，确保兼容性
+            source.type = 'video/mp4'; // 使用简单的MIME类型，让浏览器自动检测编码
             videoPlayer.appendChild(source);
             
-            // 也设置src作为备用
+            // 也设置src作为备用（直接设置，不指定type）
             videoPlayer.src = videoUrl;
             
             // 添加进度监听，显示加载进度
