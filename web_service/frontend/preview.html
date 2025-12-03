@@ -148,6 +148,8 @@
                 errorDetail = '网络连接问题，请检查网络';
             } else if (errorCode === 3) {
                 errorDetail = '视频解码失败，可能是编码格式问题';
+            } else if (errorCode === 'TIMEOUT') {
+                errorDetail = '视频加载超时，可能是文件较大或网络较慢。建议：\n1. 检查网络连接\n2. 尝试使用WiFi网络\n3. 或直接下载视频';
             } else {
                 errorDetail = '请检查网络连接或稍后重试';
             }
@@ -227,7 +229,8 @@
             });
             
             // 设置视频源（使用preload优化）
-            videoPlayer.preload = 'metadata'; // 先加载元数据
+            // 使用auto预加载，让浏览器决定最佳策略
+            videoPlayer.preload = 'auto'; // 改为auto，允许浏览器预加载更多数据
             
             // 添加source标签，确保正确的MIME类型和编码提示
             // 移除旧的source（如果有）
@@ -245,22 +248,63 @@
             // 也设置src作为备用
             videoPlayer.src = videoUrl;
             
-            // 添加超时检测（30秒）
-            const loadTimeout = setTimeout(() => {
-                if (isLoading) {
-                    console.error('视频加载超时');
-                    showError({ code: 'TIMEOUT', message: '加载超时' }, videoUrl);
+            // 添加进度监听，显示加载进度
+            videoPlayer.addEventListener('progress', () => {
+                if (videoPlayer.buffered.length > 0) {
+                    const bufferedEnd = videoPlayer.buffered.end(videoPlayer.buffered.length - 1);
+                    const duration = videoPlayer.duration;
+                    if (duration > 0) {
+                        const percent = Math.round((bufferedEnd / duration) * 100);
+                        console.log(`视频加载进度: ${percent}%`);
+                    }
                 }
-            }, 30000);
-            
-            // 清除超时
-            videoPlayer.addEventListener('loadedmetadata', () => {
-                clearTimeout(loadTimeout);
             });
             
-            videoPlayer.addEventListener('error', () => {
-                clearTimeout(loadTimeout);
-            });
+            // 添加渐进式超时检测（适应不同网络环境）
+            // 第一次：60秒（给大文件和慢速网络更多时间）
+            // 如果超时，自动重试并增加超时时间
+            let timeoutAttempt = 0;
+            const timeoutStrategies = [60000, 90000, 120000]; // 60秒、90秒、120秒
+            
+            function setupTimeout() {
+                const timeoutMs = timeoutStrategies[Math.min(timeoutAttempt, timeoutStrategies.length - 1)];
+                const loadTimeout = setTimeout(() => {
+                    if (isLoading) {
+                        console.error(`视频加载超时（${timeoutMs/1000}秒）`);
+                        timeoutAttempt++;
+                        
+                        // 如果还有重试机会，自动重试
+                        if (timeoutAttempt < timeoutStrategies.length) {
+                            console.log(`🔄 自动重试加载视频（${timeoutAttempt + 1}/${timeoutStrategies.length}）...`);
+                            // 重新设置视频源
+                            videoPlayer.src = '';
+                            setTimeout(() => {
+                                videoPlayer.src = videoUrl;
+                                setupTimeout(); // 重新设置超时
+                            }, 1000);
+                        } else {
+                            // 所有重试都失败，显示错误
+                            showError({ code: 'TIMEOUT', message: `加载超时（已重试${timeoutAttempt}次）` }, videoUrl);
+                        }
+                    }
+                }, timeoutMs);
+                
+                // 清除超时
+                const clearTimeoutOnSuccess = () => {
+                    clearTimeout(loadTimeout);
+                    isLoading = false;
+                };
+                
+                videoPlayer.addEventListener('loadedmetadata', clearTimeoutOnSuccess, { once: true });
+                videoPlayer.addEventListener('canplay', clearTimeoutOnSuccess, { once: true });
+                videoPlayer.addEventListener('canplaythrough', clearTimeoutOnSuccess, { once: true });
+                videoPlayer.addEventListener('error', () => {
+                    clearTimeout(loadTimeout);
+                }, { once: true });
+            }
+            
+            // 初始设置超时
+            setupTimeout();
         }
     </script>
 </body>

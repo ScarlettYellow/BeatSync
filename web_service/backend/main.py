@@ -905,6 +905,9 @@ async def preview_result(task_id: str, version: Optional[str] = None):
     
     # 使用流式响应，支持在线播放（不设置attachment）
     # FastAPI的FileResponse自动支持Range请求，这对手机端视频播放很重要
+    # 获取文件大小，用于优化Range请求
+    file_size = output_file.stat().st_size
+    
     return FileResponse(
         str(output_file),
         media_type='video/mp4; codecs="avc1.42E01E, mp4a.40.2"',  # 明确指定H.264和AAC编码，确保兼容性
@@ -913,6 +916,7 @@ async def preview_result(task_id: str, version: Optional[str] = None):
             "Accept-Ranges": "bytes",  # 支持断点续传和流式播放（手机端必需）
             "Content-Disposition": f'inline; filename="{filename}"',  # inline表示在线播放，而不是下载
             "Cache-Control": "public, max-age=3600",  # 添加缓存，提升加载速度
+            "Content-Length": str(file_size),  # 明确指定文件大小，帮助浏览器优化加载
             "Access-Control-Allow-Origin": "*",  # 确保CORS支持（虽然已在中间件配置，但显式设置更安全）
             "Access-Control-Expose-Headers": "Content-Range, Accept-Ranges, Content-Length",  # 暴露Range相关头部和文件大小
             "Content-Type": "video/mp4; codecs=\"avc1.42E01E, mp4a.40.2\""  # 双重确保MIME类型正确
