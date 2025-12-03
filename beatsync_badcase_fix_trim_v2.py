@@ -655,7 +655,10 @@ def create_trimmed_video(dance_video: str, bgm_video: str, output_video: str,
                 if trim_start == 0:
                     cmd_trim = ['ffmpeg', '-y', '-nostdin', '-hide_banner', '-v', 'error',
                                 '-i', temp_video, '-t', str(final_duration),
-                                '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k', output_video]
+                                '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k']
+                    # 添加faststart，将moov atom移到文件开头，实现快速播放
+                    cmd_trim += ['-movflags', '+faststart']
+                    cmd_trim += [output_video]
                 else:
                     # 如果需要裁剪开头和末尾，使用-ss和-t参数
                     cmd_trim = ['ffmpeg', '-y', '-nostdin', '-hide_banner', '-v', 'error',
