@@ -136,7 +136,7 @@ def process_with_modular(dance_video: str, bgm_video: str, output_video: str) ->
             "--video-encode", "x264_fast",
             "--enable-cache",
             "--cache-dir", ".beatsync_cache",
-            "--threads", str(CPU_COUNT),  # 根据CPU核心数自动调整
+            "--threads", str(max(1, CPU_COUNT // 2)),  # 使用一半CPU核心数，避免并行处理时的资源竞争
             "--lib-threads", "1"
         ]
         
@@ -255,7 +255,7 @@ def process_with_v2(dance_video: str, bgm_video: str, output_video: str) -> dict
             "--video-encode", "x264_fast",
             "--enable-cache",
             "--cache-dir", ".beatsync_cache",
-            "--threads", str(CPU_COUNT),  # 根据CPU核心数自动调整
+            "--threads", str(max(1, CPU_COUNT // 2)),  # 使用一半CPU核心数，避免并行处理时的资源竞争
             "--lib-threads", "1"
         ]
         
