@@ -311,6 +311,15 @@ async function uploadFile(file, fileType, retryCount = 0) {
             throw new Error(errorMsg);
         }
         
+        // 检查文件大小（限制500MB）
+        const fileSizeMB = file.size / (1024 * 1024);
+        const maxSizeMB = 500; // 500MB限制
+        if (fileSizeMB > maxSizeMB) {
+            const errorMsg = `文件大小超过限制（最大${maxSizeMB}MB），当前文件：${formatFileSize(file.size)}。请压缩或裁剪文件后重试。`;
+            updateStatus(errorMsg, 'error');
+            throw new Error(errorMsg);
+        }
+        
         updateStatus(`正在上传${fileType === 'dance' ? '原始视频' : '音源视频'}...`, 'processing');
         
         // 显示上传进度条
@@ -321,12 +330,12 @@ async function uploadFile(file, fileType, retryCount = 0) {
         console.log('开始上传文件:', {
             fileName: file.name,
             fileSize: file.size,
+            fileSizeMB: fileSizeMB.toFixed(2),
             fileType: fileType,
             apiUrl: `${API_BASE_URL}/api/upload`
         });
         
         // 使用XMLHttpRequest替代fetch，以支持上传进度
-        const fileSizeMB = file.size / (1024 * 1024);
         const timeoutMs = fileSizeMB >= 10 ? 600000 : 120000; // 大文件10分钟，小文件2分钟
         
         let response;
