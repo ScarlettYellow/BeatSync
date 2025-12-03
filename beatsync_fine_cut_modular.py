@@ -402,6 +402,9 @@ def create_aligned_video(dance_video: str, bgm_video: str, output_video: str,
         cmd += ['-c:v', 'copy']
         # 音频编码采用aac，保持与现有输出一致（不影响对齐准确性）
         cmd += ['-c:a', 'aac']
+        # 添加faststart，将moov atom移到文件开头，实现快速播放（即使使用copy也需要重新封装）
+        # 注意：使用copy时，faststart会在输出时重新封装，确保moov在开头
+        cmd += ['-movflags', '+faststart']
         cmd += [
             '-map', '0:v:0',
             '-map', '1:a:0',
@@ -795,7 +798,10 @@ def trim_silent_segments_module(input_video: str, output_video: str, dance_video
                 # x264 编码：在fast_video 下用 ultrafast，否则保持 fast，保证与原有输出一致性
                 preset = 'ultrafast' if fast_video else 'fast'
                 cmd_trim += ['-c:v', 'libx264', '-preset', preset, '-crf', '23']  # CRF 23：高质量输出
-        cmd_trim += ['-c:a', 'aac', '-b:a', '192k', output_video]
+        cmd_trim += ['-c:a', 'aac', '-b:a', '192k']
+        # 添加faststart，将moov atom移到文件开头，实现快速播放（10秒内开始播放）
+        cmd_trim += ['-movflags', '+faststart']
+        cmd_trim += [output_video]
         
         # 增强异常处理
         try:

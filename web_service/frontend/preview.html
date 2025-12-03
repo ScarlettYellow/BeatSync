@@ -149,7 +149,7 @@
             } else if (errorCode === 3) {
                 errorDetail = '视频解码失败，可能是编码格式问题';
             } else if (errorCode === 'TIMEOUT') {
-                errorDetail = '视频加载超时，可能是文件较大或网络较慢。建议：\n1. 检查网络连接\n2. 尝试使用WiFi网络\n3. 或直接下载视频';
+                errorDetail = '视频加载超时（目标10秒内播放）。建议：\n1. 检查网络连接\n2. 尝试使用WiFi网络\n3. 或直接下载视频\n\n注意：新生成的视频已优化，应该可以在10秒内播放';
             } else {
                 errorDetail = '请检查网络连接或稍后重试';
             }
@@ -228,9 +228,9 @@
                 showError(error, videoUrl);
             });
             
-            // 设置视频源（使用preload优化）
-            // 使用auto预加载，让浏览器决定最佳策略
-            videoPlayer.preload = 'auto'; // 改为auto，允许浏览器预加载更多数据
+            // 设置视频源（优化快速播放）
+            // 使用metadata预加载，只加载元数据，配合faststart实现10秒内播放
+            videoPlayer.preload = 'metadata'; // metadata足够，因为moov atom在文件开头
             
             // 添加source标签，确保正确的MIME类型和编码提示
             // 移除旧的source（如果有）
@@ -260,11 +260,10 @@
                 }
             });
             
-            // 添加渐进式超时检测（适应不同网络环境）
-            // 第一次：60秒（给大文件和慢速网络更多时间）
-            // 如果超时，自动重试并增加超时时间
+            // 添加快速播放超时检测（目标：10秒内开始播放）
+            // 使用渐进式超时，但更激进：第一次10秒，如果失败再增加
             let timeoutAttempt = 0;
-            const timeoutStrategies = [60000, 90000, 120000]; // 60秒、90秒、120秒
+            const timeoutStrategies = [10000, 20000, 30000]; // 10秒、20秒、30秒（目标10秒内播放）
             
             function setupTimeout() {
                 const timeoutMs = timeoutStrategies[Math.min(timeoutAttempt, timeoutStrategies.length - 1)];
@@ -281,10 +280,10 @@
                             setTimeout(() => {
                                 videoPlayer.src = videoUrl;
                                 setupTimeout(); // 重新设置超时
-                            }, 1000);
+                            }, 500); // 缩短重试间隔到500ms
                         } else {
                             // 所有重试都失败，显示错误
-                            showError({ code: 'TIMEOUT', message: `加载超时（已重试${timeoutAttempt}次）` }, videoUrl);
+                            showError({ code: 'TIMEOUT', message: `加载超时（已重试${timeoutAttempt}次，目标10秒内播放）` }, videoUrl);
                         }
                     }
                 }, timeoutMs);
@@ -293,6 +292,8 @@
                 const clearTimeoutOnSuccess = () => {
                     clearTimeout(loadTimeout);
                     isLoading = false;
+                    const elapsed = Date.now() - startLoadTime;
+                    console.log(`✅ 视频可以播放（耗时${elapsed}ms）`);
                 };
                 
                 videoPlayer.addEventListener('loadedmetadata', clearTimeoutOnSuccess, { once: true });
@@ -302,6 +303,9 @@
                     clearTimeout(loadTimeout);
                 }, { once: true });
             }
+            
+            // 记录开始加载时间
+            const startLoadTime = Date.now();
             
             // 初始设置超时
             setupTimeout();

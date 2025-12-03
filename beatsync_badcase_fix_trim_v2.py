@@ -570,8 +570,10 @@ def create_trimmed_video(dance_video: str, bgm_video: str, output_video: str,
             cmd = ['ffmpeg', '-y', '-nostdin', '-hide_banner', '-v', 'error']
             if hwaccel:
                 cmd += ['-hwaccel', hwaccel]
-            cmd += ['-i', dance_video, '-i', bgm_video, '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k',
-                    '-map', '0:v:0', '-map', '1:a:0', temp_video]
+            cmd += ['-i', dance_video, '-i', bgm_video, '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k']
+            # 添加faststart，将moov atom移到文件开头，实现快速播放
+            cmd += ['-movflags', '+faststart']
+            cmd += ['-map', '0:v:0', '-map', '1:a:0', temp_video]
         
         # 增强异常处理
         try:
@@ -660,7 +662,10 @@ def create_trimmed_video(dance_video: str, bgm_video: str, output_video: str,
                     else:
                         preset = 'ultrafast' if fast_video else 'fast'
                         cmd_trim += ['-c:v', 'libx264', '-preset', preset, '-crf', '23']
-                    cmd_trim += ['-c:a', 'aac', '-b:a', '192k', output_video]
+                    cmd_trim += ['-c:a', 'aac', '-b:a', '192k']
+                    # 添加faststart，将moov atom移到文件开头，实现快速播放（10秒内开始播放）
+                    cmd_trim += ['-movflags', '+faststart']
+                    cmd_trim += [output_video]
                 
                 # 增强异常处理
                 try:
