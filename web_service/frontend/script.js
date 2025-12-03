@@ -154,37 +154,61 @@ async function handleFileSelect(event, fileType) {
     await uploadFile(file, fileType);
 }
 
-// 检查后端服务是否可用（支持渐进式超时和重试）
+// 检查后端服务是否可用（支持渐进式超时和重试，增强浏览器兼容性）
 async function checkBackendHealth(retryCount = 0) {
     const healthUrl = `${API_BASE_URL}/api/health`;
     const controller = new AbortController();
     
-    // 检测网络类型和设备类型
+    // 检测浏览器类型
+    const userAgent = navigator.userAgent.toLowerCase();
+    const isQuark = userAgent.includes('quark');
+    const isWeChat = userAgent.includes('micromessenger');
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     
     // 渐进式超时策略：首次尝试较短超时，重试时增加超时时间
-    // 这样可以快速响应正常情况，同时给慢速网络更多机会
-    const timeoutStrategies = [
-        20000,  // 第一次：20秒（快速检测正常情况）
-        35000,  // 第二次：35秒（给慢速网络更多时间）
-        45000   // 第三次：45秒（最大超时，适应极端情况）
-    ];
+    // 对于某些浏览器（如夸克、微信），使用更长的超时时间
+    let timeoutStrategies;
+    if (isQuark || isWeChat) {
+        // 夸克和微信浏览器可能需要更长的超时时间
+        timeoutStrategies = [
+            30000,  // 第一次：30秒
+            50000,  // 第二次：50秒
+            60000   // 第三次：60秒（最大超时）
+        ];
+    } else {
+        timeoutStrategies = [
+            20000,  // 第一次：20秒（快速检测正常情况）
+            35000,  // 第二次：35秒（给慢速网络更多时间）
+            45000   // 第三次：45秒（最大超时，适应极端情况）
+        ];
+    }
     
     const timeoutMs = timeoutStrategies[Math.min(retryCount, timeoutStrategies.length - 1)];
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
     
     try {
         const startTime = Date.now();
-        const response = await fetch(healthUrl, {
+        
+        // 构建fetch选项，针对不同浏览器优化
+        const fetchOptions = {
             method: 'GET',
             signal: controller.signal,
             headers: {
-                'Cache-Control': 'no-cache'
+                'Cache-Control': 'no-cache',
+                'Pragma': 'no-cache'
             },
             // 确保跨域请求正常
             mode: 'cors',
             credentials: 'omit'
-        });
+        };
+        
+        // 某些浏览器可能需要额外的配置
+        if (isQuark || isWeChat) {
+            // 对于夸克和微信，尝试更宽松的配置
+            fetchOptions.cache = 'no-store';
+        }
+        
+        const response = await fetch(healthUrl, fetchOptions);
         clearTimeout(timeoutId);
         const elapsed = Date.now() - startTime;
         
@@ -197,6 +221,17 @@ async function checkBackendHealth(retryCount = 0) {
         }
     } catch (fetchError) {
         clearTimeout(timeoutId);
+        
+        // 记录详细的错误信息（用于调试）
+        const errorDetails = {
+            name: fetchError.name,
+            message: fetchError.message,
+            stack: fetchError.stack,
+            userAgent: navigator.userAgent,
+            url: healthUrl,
+            retryCount: retryCount
+        };
+        console.warn('⚠️ 后端健康检查失败详情:', errorDetails);
         
         // AbortError是预期的超时错误
         if (fetchError.name === 'AbortError') {
@@ -214,9 +249,17 @@ async function checkBackendHealth(retryCount = 0) {
             return false;
         }
         
-        // 其他错误（如网络错误、CORS错误等）
+        // 其他错误（如网络错误、CORS错误、证书错误等）
         if (fetchError.message && !fetchError.message.includes('aborted')) {
             console.warn('⚠️ 后端健康检查失败:', fetchError.message);
+            
+            // 检测证书错误（某些浏览器对自签名证书更严格）
+            if (fetchError.message.includes('certificate') || 
+                fetchError.message.includes('SSL') || 
+                fetchError.message.includes('TLS') ||
+                fetchError.message.includes('ERR_CERT')) {
+                console.warn('⚠️ 可能是SSL证书问题（自签名证书），某些浏览器可能拒绝连接');
+            }
             
             // 如果是CORS错误，提供更详细的提示
             if (fetchError.message.includes('CORS') || fetchError.message.includes('cors')) {
@@ -227,10 +270,11 @@ async function checkBackendHealth(retryCount = 0) {
             if (retryCount === 0 && (
                 fetchError.message.includes('Failed to fetch') ||
                 fetchError.message.includes('NetworkError') ||
-                fetchError.message.includes('network')
+                fetchError.message.includes('network') ||
+                fetchError.message.includes('ERR_')
             )) {
                 console.log('🔄 网络错误，自动重试一次...');
-                await new Promise(resolve => setTimeout(resolve, 1000));
+                await new Promise(resolve => setTimeout(resolve, 2000)); // 等待2秒后重试
                 return await checkBackendHealth(retryCount + 1);
             }
         }
@@ -251,21 +295,42 @@ async function uploadFile(file, fileType, retryCount = 0) {
         const backendAvailable = await checkBackendHealth();
         
         if (!backendAvailable) {
-            // 检测是否为手机设备
+            // 检测浏览器和设备类型
+            const userAgent = navigator.userAgent.toLowerCase();
             const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+            const isQuark = userAgent.includes('quark');
+            const isWeChat = userAgent.includes('micromessenger');
+            const isSafari = /safari/i.test(navigator.userAgent) && !/chrome|crios|fxios/i.test(navigator.userAgent);
             
             let errorMsg = `后端服务不可用（已尝试多次连接）。\n\n`;
             errorMsg += `可能原因：\n`;
             errorMsg += `1. 网络连接问题（请检查网络，手机网络可能比WiFi慢）\n`;
-            if (isMobile) {
+            
+            // 针对不同浏览器提供不同的提示
+            if (isQuark) {
+                errorMsg += `2. 夸克浏览器可能需要更长的连接时间（建议使用WiFi网络）\n`;
+                errorMsg += `3. 如果使用HTTPS，可能需要手动接受证书（访问 ${API_BASE_URL}/api/health）\n`;
+            } else if (isWeChat) {
+                errorMsg += `2. 微信内置浏览器可能有网络限制（建议使用系统浏览器）\n`;
+                errorMsg += `3. 如果使用HTTPS，可能需要手动接受证书（访问 ${API_BASE_URL}/api/health）\n`;
+            } else if (isMobile) {
                 errorMsg += `2. 手机网络延迟较高（建议使用WiFi网络）\n`;
-                errorMsg += `3. 后端服务未运行（请检查服务器状态）\n\n`;
+                errorMsg += `3. 后端服务未运行（请检查服务器状态）\n`;
             } else {
                 errorMsg += `2. 防火墙配置问题（请检查服务器防火墙）\n`;
-                errorMsg += `3. 后端服务未运行（请检查服务器状态）\n\n`;
+                errorMsg += `3. 后端服务未运行（请检查服务器状态）\n`;
             }
-            errorMsg += `手动检查：访问 ${API_BASE_URL}/api/health 查看服务状态\n`;
-            errorMsg += `如果健康检查正常，可能是网络延迟问题，请点击"重试"按钮。`;
+            
+            errorMsg += `\n手动检查：访问 ${API_BASE_URL}/api/health 查看服务状态\n`;
+            
+            // 针对HTTPS自签名证书的特殊提示
+            if (API_BASE_URL.startsWith('https://')) {
+                errorMsg += `\n⚠️ HTTPS证书提示：\n`;
+                errorMsg += `如果使用自签名证书，某些浏览器（如夸克、微信）可能需要先手动访问健康检查地址并接受证书。\n`;
+                errorMsg += `请先访问：${API_BASE_URL}/api/health\n`;
+            }
+            
+            errorMsg += `\n如果健康检查正常，可能是网络延迟问题，请点击"重试"按钮。`;
             
             // 显示错误并添加重试按钮
             updateStatus(errorMsg, 'error');
