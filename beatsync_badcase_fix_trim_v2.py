@@ -550,7 +550,10 @@ def create_trimmed_video(dance_video: str, bgm_video: str, output_video: str,
             else:
                 preset = 'ultrafast' if fast_video else 'fast'
                 cmd += ['-c:v', 'libx264', '-preset', preset, '-crf', '23']  # CRF 23：高质量输出
-            cmd += ['-c:a', 'aac', '-b:a', '192k', '-map', '0:v:0', '-map', '1:a:0', temp_video]
+            cmd += ['-c:a', 'aac', '-b:a', '192k']
+            # 添加faststart，将moov atom移到文件开头，实现快速播放
+            cmd += ['-movflags', '+faststart']
+            cmd += ['-map', '0:v:0', '-map', '1:a:0', temp_video]
         elif badcase_type == "T2_GT_T1":
             # T2 > T1: 裁剪BGM音频的前gap_duration秒
             print("  裁剪BGM音频前段...")
