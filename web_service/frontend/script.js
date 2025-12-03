@@ -61,8 +61,9 @@ const statusText = document.getElementById('status-text');
 const downloadSection = document.getElementById('download-section');
 const downloadModularBtn = document.getElementById('download-modular-btn');
 const downloadV2Btn = document.getElementById('download-v2-btn');
-const previewModularBtn = document.getElementById('preview-modular-btn');
-const previewV2Btn = document.getElementById('preview-v2-btn');
+// 在线预览功能已移除
+// const previewModularBtn = document.getElementById('preview-modular-btn');
+// const previewV2Btn = document.getElementById('preview-v2-btn');
 const modularPreview = document.getElementById('modular-preview');
 const v2Preview = document.getElementById('v2-preview');
 const modularResult = document.getElementById('modular-result');
@@ -884,23 +885,13 @@ function updateDownloadButton(result) {
     const modularStatus = result.modular_status || 'processing';
     const v2Status = result.v2_status || 'processing';
     
-    // 更新modular按钮和预览
+    // 更新modular按钮（在线预览功能已移除）
     if (modularStatus === 'success' && result.modular_output) {
         modularResult.style.display = 'block';
         downloadModularBtn.disabled = false;
         downloadModularBtn.querySelector('.btn-status').textContent = '✅';
         downloadModularBtn.querySelector('.btn-text').textContent = '下载视频';
-        previewModularBtn.disabled = false;
-        previewModularBtn.querySelector('.btn-status').textContent = '▶️';
-        previewModularBtn.querySelector('.btn-text').textContent = '在线预览';
         
-        // 预览功能：在新窗口打开预览页面
-        previewModularBtn.onclick = () => {
-            const modularUrl = `${API_BASE_URL}/api/preview/${result.task_id}?version=modular`;
-            const previewUrl = `preview.html?url=${encodeURIComponent(modularUrl)}&title=${encodeURIComponent('Modular版本结果')}`;
-            window.open(previewUrl, '_blank');
-            updateStatus('已在新窗口打开Modular版本预览', 'info');
-        };
         downloadModularBtn.onclick = async () => {
             // 重新获取最新状态（避免使用闭包中的旧值）
             try {
@@ -945,23 +936,13 @@ function updateDownloadButton(result) {
         downloadModularBtn.onclick = null;
     }
     
-    // 更新v2按钮和预览
+    // 更新v2按钮（在线预览功能已移除）
     if (v2Status === 'success' && result.v2_output) {
         v2Result.style.display = 'block';
         downloadV2Btn.disabled = false;
         downloadV2Btn.querySelector('.btn-status').textContent = '✅';
         downloadV2Btn.querySelector('.btn-text').textContent = '下载视频';
-        previewV2Btn.disabled = false;
-        previewV2Btn.querySelector('.btn-status').textContent = '▶️';
-        previewV2Btn.querySelector('.btn-text').textContent = '在线预览';
         
-        // 预览功能：在新窗口打开预览页面
-        previewV2Btn.onclick = () => {
-            const v2Url = `${API_BASE_URL}/api/preview/${result.task_id}?version=v2`;
-            const previewUrl = `preview.html?url=${encodeURIComponent(v2Url)}&title=${encodeURIComponent('V2版本结果')}`;
-            window.open(previewUrl, '_blank');
-            updateStatus('已在新窗口打开V2版本预览', 'info');
-        };
         downloadV2Btn.onclick = async () => {
             // 重新获取最新状态（避免使用闭包中的旧值）
             try {

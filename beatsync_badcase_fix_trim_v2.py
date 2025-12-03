@@ -59,7 +59,8 @@ def normalize_video_format(video_path: str, output_path: str = None,
         'ffmpeg', '-y',
         '-i', video_path,
         '-c', 'copy',  # stream copy，不重新编码
-        '-movflags', '+faststart',  # 优化MP4结构，便于流式播放
+        # 移除faststart以提升处理速度（不再需要在线预览功能）
+        # '-movflags', '+faststart',  # 优化MP4结构，便于流式播放
         output_path
     ]
     
@@ -551,8 +552,8 @@ def create_trimmed_video(dance_video: str, bgm_video: str, output_video: str,
                 preset = 'ultrafast' if fast_video else 'fast'
                 cmd += ['-c:v', 'libx264', '-preset', preset, '-crf', '23']  # CRF 23：高质量输出
             cmd += ['-c:a', 'aac', '-b:a', '192k']
-            # 添加faststart，将moov atom移到文件开头，实现快速播放
-            cmd += ['-movflags', '+faststart']
+            # 移除faststart以提升处理速度（不再需要在线预览功能）
+            # cmd += ['-movflags', '+faststart']
             cmd += ['-map', '0:v:0', '-map', '1:a:0', temp_video]
         elif badcase_type == "T2_GT_T1":
             # T2 > T1: 裁剪BGM音频的前gap_duration秒
@@ -574,8 +575,8 @@ def create_trimmed_video(dance_video: str, bgm_video: str, output_video: str,
             if hwaccel:
                 cmd += ['-hwaccel', hwaccel]
             cmd += ['-i', dance_video, '-i', bgm_video, '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k']
-            # 添加faststart，将moov atom移到文件开头，实现快速播放
-            cmd += ['-movflags', '+faststart']
+            # 移除faststart以提升处理速度（不再需要在线预览功能）
+            # cmd += ['-movflags', '+faststart']
             cmd += ['-map', '0:v:0', '-map', '1:a:0', temp_video]
         
         # 增强异常处理
@@ -656,8 +657,8 @@ def create_trimmed_video(dance_video: str, bgm_video: str, output_video: str,
                     cmd_trim = ['ffmpeg', '-y', '-nostdin', '-hide_banner', '-v', 'error',
                                 '-i', temp_video, '-t', str(final_duration),
                                 '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k']
-                    # 添加faststart，将moov atom移到文件开头，实现快速播放
-                    cmd_trim += ['-movflags', '+faststart']
+                    # 移除faststart以提升处理速度（不再需要在线预览功能）
+                    # cmd_trim += ['-movflags', '+faststart']
                     cmd_trim += [output_video]
                 else:
                     # 如果需要裁剪开头和末尾，使用-ss和-t参数
@@ -669,8 +670,8 @@ def create_trimmed_video(dance_video: str, bgm_video: str, output_video: str,
                         preset = 'ultrafast' if fast_video else 'fast'
                         cmd_trim += ['-c:v', 'libx264', '-preset', preset, '-crf', '23']
                     cmd_trim += ['-c:a', 'aac', '-b:a', '192k']
-                    # 添加faststart，将moov atom移到文件开头，实现快速播放（10秒内开始播放）
-                    cmd_trim += ['-movflags', '+faststart']
+                    # 移除faststart以提升处理速度（不再需要在线预览功能）
+                    # cmd_trim += ['-movflags', '+faststart']
                     cmd_trim += [output_video]
                 
                 # 增强异常处理
