@@ -1,0 +1,28 @@
+{
+  "name": "BeatSync 视频音轨自动对齐和替换",
+  "short_name": "BeatSync",
+  "description": "智能视频音轨自动对齐和替换工具，支持街舞课堂视频音频优化",
+  "start_url": "/BeatSync/",
+  "scope": "/BeatSync/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#007AFF",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "favicon.ico",
+      "sizes": "48x48",
+      "type": "image/x-icon"
+    }
+  ],
+  "categories": ["video", "music", "productivity"],
+  "lang": "zh-CN",
+  "dir": "ltr"
+}
+

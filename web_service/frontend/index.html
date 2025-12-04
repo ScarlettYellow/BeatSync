@@ -3,6 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- PWA支持 -->
+    <meta name="theme-color" content="#007AFF">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="BeatSync">
     <!-- 防止浏览器缓存，确保总是加载最新版本 -->
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
@@ -10,6 +15,8 @@
     <title>BeatSync 视频音轨自动对齐和替换</title>
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <link rel="icon" type="image/x-icon" href="favicon.ico">
+    <link rel="apple-touch-icon" href="favicon.svg">
+    <link rel="manifest" href="manifest.json">
     <link rel="stylesheet" href="style.css?v=20251202">
 </head>
 <body>
@@ -99,6 +106,33 @@
             </div>
         </div>
     </div>
+    
+    <!-- Service Worker注册 -->
+    <script>
+        // 注册Service Worker
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/BeatSync/sw.js')
+                    .then((registration) => {
+                        console.log('[PWA] Service Worker注册成功:', registration.scope);
+                        
+                        // 检查更新
+                        registration.addEventListener('updatefound', () => {
+                            const newWorker = registration.installing;
+                            newWorker.addEventListener('statechange', () => {
+                                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                    // 新版本已安装，提示用户刷新
+                                    console.log('[PWA] 新版本已安装，请刷新页面');
+                                }
+                            });
+                        });
+                    })
+                    .catch((error) => {
+                        console.warn('[PWA] Service Worker注册失败:', error);
+                    });
+            });
+        }
+    </script>
     
     <!-- 添加版本号参数，每次更新时更改版本号，强制浏览器重新加载 -->
     <script src="script.js?v=20251202"></script>
