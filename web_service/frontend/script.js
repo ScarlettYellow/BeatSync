@@ -259,8 +259,11 @@ async function checkBackendHealth(retryCount = 0) {
             if (fetchError.message.includes('certificate') || 
                 fetchError.message.includes('SSL') || 
                 fetchError.message.includes('TLS') ||
-                fetchError.message.includes('ERR_CERT')) {
-                console.warn('⚠️ 可能是SSL证书问题（自签名证书），某些浏览器可能拒绝连接');
+                fetchError.message.includes('ERR_CERT') ||
+                fetchError.message.includes('ERR_CERT_COMMON_NAME_INVALID')) {
+                console.warn('⚠️ SSL证书错误：证书是为域名签发的，使用IP地址访问时需要接受证书警告');
+                console.warn('   解决方法：请先手动访问 https://124.221.58.149/api/health 并接受证书警告');
+                console.warn('   步骤：1. 点击"高级" 2. 点击"继续访问" 3. 刷新页面重试');
             }
             
             // 如果是CORS错误，提供更详细的提示
@@ -326,7 +329,17 @@ async function uploadFile(file, fileType, retryCount = 0) {
             errorMsg += `\n手动检查：访问 ${API_BASE_URL}/api/health 查看服务状态\n`;
             
             // 针对HTTPS自签名证书的特殊提示
-            if (API_BASE_URL.startsWith('https://')) {
+            if (API_BASE_URL.startsWith('https://') && API_BASE_URL.includes('124.221.58.149')) {
+                errorMsg += `\n⚠️ SSL证书错误（临时方案）：\n`;
+                errorMsg += `当前使用IP地址访问，但SSL证书是为域名签发的，浏览器会拒绝连接。\n`;
+                errorMsg += `解决方法：\n`;
+                errorMsg += `1. 点击下方链接打开健康检查页面：\n`;
+                errorMsg += `   ${API_BASE_URL}/api/health\n`;
+                errorMsg += `2. 在打开的页面中，点击"高级"或"Advanced"\n`;
+                errorMsg += `3. 点击"继续访问"或"Proceed to 124.221.58.149 (unsafe)"\n`;
+                errorMsg += `4. 返回本页面，点击"重试"按钮\n`;
+                errorMsg += `\n注意：这是临时方案，域名备案通过后将自动恢复。\n`;
+            } else if (API_BASE_URL.startsWith('https://')) {
                 errorMsg += `\n⚠️ HTTPS证书提示：\n`;
                 errorMsg += `如果使用自签名证书，某些浏览器（如夸克、微信）可能需要先手动访问健康检查地址并接受证书。\n`;
                 errorMsg += `请先访问：${API_BASE_URL}/api/health\n`;
