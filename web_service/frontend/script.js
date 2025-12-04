@@ -25,11 +25,13 @@ const API_BASE_URL = (() => {
     }
     
     // 生产环境：使用腾讯云服务器（HTTPS）
-    // 域名：beatsync.site（通过Nginx反向代理，端口443，Let's Encrypt证书）
-    const backendUrl = window.API_BASE_URL || 'https://beatsync.site';
-    console.log('🟢 生产环境检测（腾讯云服务器 - HTTPS - beatsync.site）');
+    // 临时方案：使用IP地址（域名备案审核中，备案通过后改回域名）
+    // 正式方案：使用域名 beatsync.site（通过Nginx反向代理，端口443，Let's Encrypt证书）
+    const backendUrl = window.API_BASE_URL || 'https://124.221.58.149';
+    console.log('🟢 生产环境检测（腾讯云服务器 - HTTPS - 临时使用IP地址）');
     console.log('   访问地址:', window.location.href);
     console.log('   后端URL:', backendUrl);
+    console.log('   ⚠️ 临时方案：域名备案审核中，备案通过后改回域名');
     return backendUrl;
 })();
 
