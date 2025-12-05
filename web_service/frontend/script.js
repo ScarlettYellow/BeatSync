@@ -1080,35 +1080,74 @@ function updateDownloadButton(result) {
 // 下载单个文件（优化：立即响应，不等待）
 async function downloadFile(url, filename) {
     try {
-        // 检测是否为移动设备
+        // 检测是否为移动设备和PWA环境
         const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
         const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+        const isPWA = window.matchMedia('(display-mode: standalone)').matches || 
+                     window.navigator.standalone || 
+                     document.referrer.includes('android-app://');
         
-        // 立即开始下载，不等待HEAD请求（避免延迟）
-        // 对于移动设备，如果支持Web Share API，可以在后台尝试（不阻塞下载）
-        let useWebShare = false;
-        if (isMobile && navigator.share) {
-            // 异步尝试获取文件大小（不阻塞下载）
-            const headPromise = fetch(url, { method: 'HEAD' }).catch(() => null);
-            headPromise.then(headResponse => {
-                if (headResponse && headResponse.ok) {
-                    const contentLength = headResponse.headers.get('Content-Length');
-                    if (contentLength) {
-                        const fileSize = parseInt(contentLength, 10);
-                        const fileSizeMB = fileSize / (1024 * 1024);
-                        // 小文件（<5MB）可以考虑使用Web Share API，但不阻塞下载
-                        if (fileSizeMB < 5) {
-                            console.log('文件较小，可以考虑使用Web Share API');
-                        }
+        // 在PWA环境中，使用fetch+blob方式强制下载（避免浏览器预览）
+        if (isPWA || isMobile) {
+            console.log('PWA/移动设备环境，使用blob方式强制下载');
+            updateStatus('正在下载...', 'processing');
+            
+            const response = await fetch(url);
+            if (!response.ok) {
+                throw new Error(`下载失败: ${response.statusText}`);
+            }
+            
+            // 获取文件大小（用于显示进度）
+            const contentLength = response.headers.get('Content-Length');
+            const total = contentLength ? parseInt(contentLength, 10) : 0;
+            
+            // 使用ReadableStream读取数据（支持大文件）
+            const reader = response.body.getReader();
+            const chunks = [];
+            let received = 0;
+            
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                
+                chunks.push(value);
+                received += value.length;
+                
+                // 更新进度（可选，对于大文件）
+                if (total > 0) {
+                    const percent = Math.round((received / total) * 100);
+                    if (percent % 10 === 0) { // 每10%更新一次
+                        updateStatus(`正在下载... ${percent}%`, 'processing');
                     }
                 }
-            }).catch(() => {});
+            }
+            
+            // 合并所有chunks
+            const blob = new Blob(chunks, { type: 'video/mp4' });
+            const downloadUrl = window.URL.createObjectURL(blob);
+            
+            // 创建下载链接
+            const a = document.createElement('a');
+            a.href = downloadUrl;
+            a.download = filename;
+            a.style.display = 'none';
+            document.body.appendChild(a);
+            a.click();
+            
+            // 延迟清理，确保下载开始
+            setTimeout(() => {
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(downloadUrl);
+            }, 100);
+            
+            console.log('下载完成:', filename);
+            updateStatus('下载已开始', 'success');
+            return true;
         }
         
-        // 立即开始下载，不等待任何检查
+        // 桌面浏览器环境，使用直接下载方式（更快）
         updateStatus('正在开始下载...', 'processing');
         
-        // 立即创建下载链接并触发
         const a = document.createElement('a');
         a.href = url;
         a.download = filename;
@@ -1122,49 +1161,12 @@ async function downloadFile(url, filename) {
         }, 100);
         
         console.log('开始下载:', filename, '(立即响应)');
-        
-        // 如果是移动设备，提示用户如何保存到相册
-        if (isMobile) {
-            setTimeout(() => {
-                if (isIOS) {
-                    updateStatus('下载已开始。下载完成后，请在"文件"应用中长按视频，选择"存储视频"保存到相册', 'info');
-                } else {
-                    updateStatus('下载已开始。下载完成后，请在文件管理器中找到视频，移动到相册文件夹', 'info');
-                }
-            }, 500); // 立即提示
-        } else {
-            updateStatus('下载已开始', 'success');
-        }
-        
+        updateStatus('下载已开始', 'success');
         return true;
     } catch (error) {
         console.error(`下载 ${filename} 失败:`, error);
-        // 如果直接下载失败，尝试使用fetch+blob方式（备用方案）
-        try {
-            console.log('直接下载失败，尝试使用blob方式...');
-            updateStatus('正在下载...', 'processing');
-            const response = await fetch(url);
-            if (!response.ok) {
-                throw new Error(`下载失败: ${response.statusText}`);
-            }
-            
-            const blob = await response.blob();
-            const downloadUrl = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = downloadUrl;
-            a.download = filename;
-            a.style.display = 'none';
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            window.URL.revokeObjectURL(downloadUrl);
-            updateStatus('下载完成', 'success');
-            return true;
-        } catch (blobError) {
-            console.error('Blob download error:', blobError);
-            updateStatus(`下载失败: ${blobError.message}`, 'error');
-            return false;
-        }
+        updateStatus(`下载失败: ${error.message}`, 'error');
+        return false;
     }
 }
 

@@ -35,12 +35,13 @@ h1 .title-en {
     font-size: 28px;
     font-weight: 700;
     letter-spacing: -0.5px;
+    color: #333333;
 }
 
 h1 .title-cn {
-    font-size: 20px;
-    font-weight: 500;
-    color: #666666;
+    font-size: 28px;
+    font-weight: 700;
+    color: #333333;
 }
 
 /* 上传区域 */
@@ -345,7 +346,7 @@ h1 .title-cn {
     }
     
     h1 .title-cn {
-        font-size: 18px;
+        font-size: 24px;
     }
     
     /* 如果屏幕足够宽，尝试一行显示 */
@@ -362,7 +363,7 @@ h1 .title-cn {
         }
         
         h1 .title-cn {
-            font-size: 18px;
+            font-size: 22px;
         }
     }
     
@@ -377,7 +378,7 @@ h1 .title-cn {
         }
         
         h1 .title-cn {
-            font-size: 20px;
+            font-size: 24px;
         }
     }
     
