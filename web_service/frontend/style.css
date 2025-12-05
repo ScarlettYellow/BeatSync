@@ -25,6 +25,22 @@ h1 {
     font-weight: bold;
     color: #333333;
     margin-bottom: 40px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    line-height: 1.2;
+}
+
+h1 .title-en {
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+}
+
+h1 .title-cn {
+    font-size: 20px;
+    font-weight: 500;
+    color: #666666;
 }
 
 /* 上传区域 */
@@ -321,8 +337,48 @@ h1 {
     }
     
     h1 {
-        font-size: 24px;
         margin-bottom: 30px;
+    }
+    
+    h1 .title-en {
+        font-size: 24px;
+    }
+    
+    h1 .title-cn {
+        font-size: 18px;
+    }
+    
+    /* 如果屏幕足够宽，尝试一行显示 */
+    @media (min-width: 360px) {
+        h1 {
+            flex-direction: row;
+            justify-content: center;
+            align-items: baseline;
+            gap: 8px;
+        }
+        
+        h1 .title-en {
+            font-size: 22px;
+        }
+        
+        h1 .title-cn {
+            font-size: 18px;
+        }
+    }
+    
+    /* 更宽的屏幕，一行显示，调整间距 */
+    @media (min-width: 400px) {
+        h1 {
+            gap: 10px;
+        }
+        
+        h1 .title-en {
+            font-size: 24px;
+        }
+        
+        h1 .title-cn {
+            font-size: 20px;
+        }
     }
     
     .upload-area {
