@@ -90,11 +90,17 @@ self.addEventListener('fetch', (event) => {
         
         // 缓存中没有，从网络获取
         return fetch(request).then((response) => {
-          // 只缓存成功的GET请求
-          if (response.status === 200 && request.method === 'GET') {
+          // 只缓存成功的GET请求，且只缓存http/https协议的请求（排除扩展程序请求）
+          const requestUrl = new URL(request.url);
+          const isHttpOrHttps = requestUrl.protocol === 'http:' || requestUrl.protocol === 'https:';
+          
+          if (response.status === 200 && request.method === 'GET' && isHttpOrHttps) {
             const responseToCache = response.clone();
             caches.open(CACHE_NAME).then((cache) => {
-              cache.put(request, responseToCache);
+              cache.put(request, responseToCache).catch((error) => {
+                // 忽略缓存错误（如扩展程序请求、不支持缓存的请求等）
+                console.warn('[Service Worker] 缓存失败（已忽略）:', error.message);
+              });
             });
           }
           return response;
