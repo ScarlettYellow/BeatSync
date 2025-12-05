@@ -1242,12 +1242,14 @@ async function downloadFile(url, filename, version = null) {
 // 使用blob方式下载（辅助函数）
 async function downloadFileWithBlob(url, filename, version = null) {
     try {
-        // 根据版本显示状态
+        // 根据版本显示状态，并保存到全局变量
         if (version) {
             const versionName = version === 'modular' ? 'Modular版本' : 'V2版本';
-            updateStatus(`正在下载${versionName}结果...`, 'processing');
+            downloadingStatusMessage = `正在下载${versionName}结果...`;
+            updateStatus(downloadingStatusMessage, 'processing');
         } else {
-            updateStatus('正在下载...', 'processing');
+            downloadingStatusMessage = '正在下载...';
+            updateStatus(downloadingStatusMessage, 'processing');
         }
         
         const response = await fetch(url);
