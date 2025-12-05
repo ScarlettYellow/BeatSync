@@ -421,15 +421,14 @@ def process_beat_sync_parallel(dance_video: str, bgm_video: str, output_dir: str
         t1.join()
         t2.join()
     else:
-        # 串行处理模式（避免I/O竞争导致V2变慢）
-        # 串行处理时，每个任务可以独占资源，避免I/O竞争
-        # 先运行modular版本（通常更快，15-30秒），用户可以更快看到第一个结果
-        # 然后运行V2版本（40.7秒），总耗时约70.7秒，比并行快1.7-2.5倍
-        print("  启动modular版本处理（串行模式，避免资源竞争）...")
-        modular_thread()
-        
-        print("  启动V2版本处理（串行模式）...")
+        # 串行处理模式（适合资源受限环境，如Render免费层）
+        # 测试结果：串行处理总耗时更长，不推荐使用
+        # 串行处理：先运行V2版本，再运行modular版本
+        print("  启动V2版本处理（串行模式，避免资源竞争）...")
         v2_thread()
+        
+        print("  启动modular版本处理（串行模式）...")
+        modular_thread()
     
     # 获取结果（线程安全）
     with result_lock:
