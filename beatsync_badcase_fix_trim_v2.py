@@ -235,10 +235,11 @@ def detect_badcase_type(ref_start: int, mov_start: int, sr: int) -> tuple:
 def detect_silent_segment_length(audio_path: str, sr: int = 22050) -> float:
     """
     检测音频前面连续无声段落的长度
+    优化：由于调用此函数时已经只提取了前10秒，这里直接处理即可
     返回需要裁剪的时长（秒）
     """
     try:
-        # 1. 加载音频
+        # 1. 加载音频（现在只加载前10秒，大大减少内存使用）
         audio, _ = sf.read(audio_path)
         
         # 2. 计算音频能量（RMS）- 滑动窗口
@@ -270,6 +271,7 @@ def detect_silent_segment_length(audio_path: str, sr: int = 22050) -> float:
 def detect_silent_segments_with_video(video_path: str, position: str = "trailing", sr: int = 22050, video_duration: float = None) -> float:
     """
     检测视频中有画面但无声段落的长度（复用beatsync_fine_cut_modular.py的成功逻辑）
+    优化：使用流式处理，只提取必要的音频片段，减少I/O和内存使用
     
     参数:
         video_path: 视频文件路径
@@ -282,29 +284,65 @@ def detect_silent_segments_with_video(video_path: str, position: str = "trailing
     try:
         print(f"  检测{position}有画面但无声段落...")
         
-        # 提取音频
-        temp_audio = "temp_silent_detection.wav"
-        cmd_extract = [
-            'ffmpeg', '-y',
-            '-i', video_path,
-            '-vn', '-acodec', 'pcm_s16le', '-ar', str(sr), '-ac', '1',
-            temp_audio
-        ]
-        result = subprocess.run(cmd_extract, capture_output=True, text=True)
-        if result.returncode != 0:
-            print("  提取音频失败")
-            return 0.0
-        
         # 使用beatsync_fine_cut_modular.py中已验证的检测逻辑
         if position == "leading":
+            # 优化：只提取前10秒音频（通常静音段落不会超过10秒）
+            # 这样可以大大减少I/O和内存使用
+            temp_audio = "temp_silent_detection_leading.wav"
+            cmd_extract = [
+                'ffmpeg', '-y',
+                '-i', video_path,
+                '-vn', '-acodec', 'pcm_s16le', '-ar', str(sr), '-ac', '1',
+                '-t', '10',  # 只提取前10秒
+                temp_audio
+            ]
+            result = subprocess.run(cmd_extract, capture_output=True, text=True)
+            if result.returncode != 0:
+                print("  提取音频失败")
+                return 0.0
+            
             # 检测开头的静音段落
             silent_duration = detect_silent_segment_length(temp_audio, sr)
             print(f"  检测到开头静音段落: {silent_duration:.3f}s")
+            
+            # 清理临时文件
+            if os.path.exists(temp_audio):
+                os.remove(temp_audio)
+            
             return silent_duration
             
         else:  # trailing
+            # 优化：只提取末尾10秒音频（通常静音段落不会超过10秒）
+            # 这样可以大大减少I/O和内存使用
+            temp_audio = "temp_silent_detection_trailing.wav"
+            
+            # 获取视频总时长（如果未传入）
+            if video_duration is None:
+                cmd_duration = [
+                    'ffprobe', '-v', 'quiet', '-show_entries', 'format=duration',
+                    '-of', 'csv=p=0', video_path
+                ]
+                result = subprocess.run(cmd_duration, capture_output=True, text=True)
+                video_duration = float(result.stdout.strip())
+            
+            # 计算提取起始时间（末尾10秒）
+            extract_start = max(0, video_duration - 10)
+            
+            cmd_extract = [
+                'ffmpeg', '-y',
+                '-i', video_path,
+                '-vn', '-acodec', 'pcm_s16le', '-ar', str(sr), '-ac', '1',
+                '-ss', str(extract_start),  # 从末尾10秒开始提取
+                '-t', '10',  # 提取10秒
+                temp_audio
+            ]
+            result = subprocess.run(cmd_extract, capture_output=True, text=True)
+            if result.returncode != 0:
+                print("  提取音频失败")
+                return 0.0
+            
             # 检测末尾的静音段落 - 使用宽松的静音检测策略
-            # 加载音频并计算RMS值
+            # 加载音频并计算RMS值（现在只加载末尾10秒）
             audio, _ = sf.read(temp_audio)
             
             # 计算音频能量（RMS）- 滑动窗口
@@ -317,17 +355,8 @@ def detect_silent_segments_with_video(video_path: str, position: str = "trailing
                 rms = np.sqrt(np.mean(segment ** 2))
                 rms_values.append(rms)
             
-            # 获取视频总时长
-            if video_duration is None:
-                # 如果没有传入视频总时长，使用ffprobe获取
-                cmd_duration = [
-                    'ffprobe', '-v', 'quiet', '-show_entries', 'format=duration',
-                    '-of', 'csv=p=0', video_path
-                ]
-                result = subprocess.run(cmd_duration, capture_output=True, text=True)
-                video_duration = float(result.stdout.strip())
-            
             # 步骤1：检测末尾N秒的静音比例
+            # 注意：由于我们只提取了末尾10秒，这里的计算需要调整
             check_duration = 3.0  # 检查末尾3秒
             check_frames = int(check_duration * sr / hop_size)
             start_check_frame = max(0, len(rms_values) - check_frames)
@@ -370,10 +399,17 @@ def detect_silent_segments_with_video(video_path: str, position: str = "trailing
                         break
                 
                 if last_strong_frame >= 0:
-                    last_strong_time = last_strong_frame * hop_size / sr
+                    # 计算在原始视频中的时间位置（需要加上提取起始时间）
+                    last_strong_time_in_extract = last_strong_frame * hop_size / sr
+                    last_strong_time = extract_start + last_strong_time_in_extract
                     trailing_silent_duration = video_duration - last_strong_time
                     print(f"  检测到音频衰减: 最后强音位置第{last_strong_time:.2f}s")
                     print(f"  建议裁剪末尾衰减段落: {trailing_silent_duration:.3f}s")
+                    
+                    # 清理临时文件
+                    if os.path.exists(temp_audio):
+                        os.remove(temp_audio)
+                    
                     return trailing_silent_duration
             
             # 步骤3：如果静音比例不足60%，使用原来的逻辑（找到最后一个有声音的位置）
@@ -384,21 +420,35 @@ def detect_silent_segments_with_video(video_path: str, position: str = "trailing
                     break
             
             if last_sound_frame >= 0:
-                last_sound_time = last_sound_frame * hop_size / sr
+                # 计算在原始视频中的时间位置（需要加上提取起始时间）
+                last_sound_time_in_extract = last_sound_frame * hop_size / sr
+                last_sound_time = extract_start + last_sound_time_in_extract
                 trailing_silent_duration = video_duration - last_sound_time
                 print(f"  最后一个有声音的位置: 第{last_sound_time:.2f}s")
                 print(f"  检测到末尾静音段落: {trailing_silent_duration:.3f}s")
+                
+                # 清理临时文件
+                if os.path.exists(temp_audio):
+                    os.remove(temp_audio)
+                
                 return trailing_silent_duration
             else:
                 print(f"  未找到有声音的位置，整个音频都是静音")
-                return len(audio) / sr
-        
-        # 清理临时文件
-        if os.path.exists(temp_audio):
-            os.remove(temp_audio)
+                # 如果整个末尾10秒都是静音，返回10秒（保守估计）
+                trailing_silent_duration = min(10.0, video_duration)
+                
+                # 清理临时文件
+                if os.path.exists(temp_audio):
+                    os.remove(temp_audio)
+                
+                return trailing_silent_duration
         
     except Exception as e:
         print(f"检测{position}静音段落失败: {e}")
+        # 确保清理临时文件
+        for temp_file in ["temp_silent_detection_leading.wav", "temp_silent_detection_trailing.wav"]:
+            if os.path.exists(temp_file):
+                os.remove(temp_file)
         return 0.0
 
 def detect_black_frames_with_audio(video_path: str, position: str = "trailing", threshold: float = 0.1) -> float:
