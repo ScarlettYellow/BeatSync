@@ -55,9 +55,10 @@ let state = {
     v2Output: null        // v2版本输出文件路径
 };
 
-// 下载状态标志（用于防止轮询覆盖下载状态）
+// 下载状态标志（用于同时显示下载和处理状态）
 let isDownloading = false;
 let downloadingVersion = null;
+let downloadingStatusMessage = null; // 当前显示的下载状态消息
 
 // DOM元素
 const danceFileInput = document.getElementById('dance-file');
@@ -802,11 +803,6 @@ async function pollTaskStatus(taskId) {
     const poll = async () => {
         attempts++;
         
-        // 如果正在下载，不更新状态（保持下载状态显示）
-        if (isDownloading) {
-            return; // 跳过本次轮询的状态更新
-        }
-        
         try {
             const response = await fetch(`${API_BASE_URL}/api/status/${taskId}`);
             
@@ -920,10 +916,21 @@ async function pollTaskStatus(taskId) {
                 
                 // 显示详细状态消息
                 const statusMsg = result.message || '正在处理，请稍候...';
+                let processingStatusMsg;
                 if (elapsedSeconds > 300) {
-                    updateStatus(`${statusMsg} (已等待${elapsedMinutes}分${remainingSeconds}秒)`, 'processing');
+                    processingStatusMsg = `${statusMsg} (已等待${elapsedMinutes}分${remainingSeconds}秒)`;
                 } else {
-                    updateStatus(`${statusMsg} (已等待${elapsedSeconds}秒)`, 'processing');
+                    processingStatusMsg = `${statusMsg} (已等待${elapsedSeconds}秒)`;
+                }
+                
+                // 如果正在下载，同时显示下载状态和处理状态
+                if (isDownloading && downloadingStatusMessage) {
+                    updateStatusWithMultiple(
+                        [downloadingStatusMessage, processingStatusMsg],
+                        ['processing', 'processing']
+                    );
+                } else {
+                    updateStatus(processingStatusMsg, 'processing');
                 }
                 
                 // 如果有部分完成，显示下载区域并更新按钮
@@ -976,6 +983,44 @@ function updateStatus(message, type = '') {
     if (type) {
         statusText.classList.add(type);
     }
+}
+
+// 更新状态显示（支持多个状态同时显示）
+function updateStatusWithMultiple(messages, types = []) {
+    // messages: 状态消息数组
+    // types: 对应的类型数组（可选）
+    if (messages.length === 0) return;
+    
+    // 如果只有一个消息，使用原来的方式
+    if (messages.length === 1) {
+        updateStatus(messages[0], types[0] || '');
+        return;
+    }
+    
+    // 多个消息，用换行符连接
+    const combinedMessage = messages.join('\n');
+    statusText.textContent = `处理状态:\n${combinedMessage}`;
+    statusText.className = 'status-text';
+    
+    // 设置样式（如果有多个类型，使用第一个类型）
+    const primaryType = types[0] || '';
+    if (primaryType === 'success') {
+        statusText.style.color = '#4CAF50';
+    } else if (primaryType === 'error') {
+        statusText.style.color = '#f44336';
+    } else if (primaryType === 'info') {
+        statusText.style.color = '#2196F3';
+    } else if (primaryType === 'processing') {
+        statusText.style.color = '#FF9800';
+    } else {
+        statusText.style.color = '#333333';
+    }
+    if (primaryType) {
+        statusText.classList.add(primaryType);
+    }
+    
+    // 设置样式支持换行
+    statusText.style.whiteSpace = 'pre-line';
 }
 
 // 更新下载按钮状态（两个独立按钮）
@@ -1153,9 +1198,11 @@ async function downloadFile(url, filename, version = null) {
         // 桌面浏览器环境，使用直接下载方式（更快）
         if (version) {
             const versionName = version === 'modular' ? 'Modular版本' : 'V2版本';
-            updateStatus(`正在下载${versionName}结果...`, 'processing');
+            downloadingStatusMessage = `正在下载${versionName}结果...`;
+            updateStatus(downloadingStatusMessage, 'processing');
         } else {
-            updateStatus('正在开始下载...', 'processing');
+            downloadingStatusMessage = '正在开始下载...';
+            updateStatus(downloadingStatusMessage, 'processing');
         }
         
         const a = document.createElement('a');
@@ -1186,6 +1233,7 @@ async function downloadFile(url, filename, version = null) {
         // 重置下载标志（无论成功或失败）
         isDownloading = false;
         downloadingVersion = null;
+        downloadingStatusMessage = null;
     }
 }
 
@@ -1227,9 +1275,11 @@ async function downloadFileWithBlob(url, filename, version = null) {
                 if (percent % 10 === 0) { // 每10%更新一次
                     if (version) {
                         const versionName = version === 'modular' ? 'Modular版本' : 'V2版本';
-                        updateStatus(`正在下载${versionName}结果... ${percent}%`, 'processing');
+                        downloadingStatusMessage = `正在下载${versionName}结果... ${percent}%`;
+                        updateStatus(downloadingStatusMessage, 'processing');
                     } else {
-                        updateStatus(`正在下载... ${percent}%`, 'processing');
+                        downloadingStatusMessage = `正在下载... ${percent}%`;
+                        updateStatus(downloadingStatusMessage, 'processing');
                     }
                 }
             }
