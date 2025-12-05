@@ -55,6 +55,10 @@ let state = {
     v2Output: null        // v2版本输出文件路径
 };
 
+// 下载状态标志（用于防止轮询覆盖下载状态）
+let isDownloading = false;
+let downloadingVersion = null;
+
 // DOM元素
 const danceFileInput = document.getElementById('dance-file');
 const bgmFileInput = document.getElementById('bgm-file');
@@ -798,6 +802,11 @@ async function pollTaskStatus(taskId) {
     const poll = async () => {
         attempts++;
         
+        // 如果正在下载，不更新状态（保持下载状态显示）
+        if (isDownloading) {
+            return; // 跳过本次轮询的状态更新
+        }
+        
         try {
             const response = await fetch(`${API_BASE_URL}/api/status/${taskId}`);
             
@@ -991,7 +1000,7 @@ function updateDownloadButton(result) {
                         console.log('下载modular版本:', latestResult.modular_output);
                         const modularUrl = `${API_BASE_URL}/api/download/${latestResult.task_id}?version=modular`;
                         const modularFilename = `modular_${latestResult.task_id}.mp4`;
-                        await downloadFile(modularUrl, modularFilename);
+                        await downloadFile(modularUrl, modularFilename, 'modular');
                     } else {
                         console.warn('Modular版本状态已变更，无法下载');
                         updateStatus('Modular版本不可用', 'error');
@@ -1001,7 +1010,7 @@ function updateDownloadButton(result) {
                     if (result.modular_output) {
                         const modularUrl = `${API_BASE_URL}/api/download/${result.task_id}?version=modular`;
                         const modularFilename = `modular_${result.task_id}.mp4`;
-                        await downloadFile(modularUrl, modularFilename);
+                        await downloadFile(modularUrl, modularFilename, 'modular');
                     }
                 }
             } catch (error) {
@@ -1009,7 +1018,7 @@ function updateDownloadButton(result) {
                 // 降级方案：使用当前result的值
                 if (result.modular_output) {
                     const modularUrl = `${API_BASE_URL}/api/download/${result.task_id}?version=modular`;
-                    await downloadFile(modularUrl, 'beatsync_modular.mp4');
+                    await downloadFile(modularUrl, 'beatsync_modular.mp4', 'modular');
                 }
             }
         };
@@ -1042,7 +1051,7 @@ function updateDownloadButton(result) {
                         console.log('下载V2版本:', latestResult.v2_output);
                         const v2Url = `${API_BASE_URL}/api/download/${latestResult.task_id}?version=v2`;
                         const v2Filename = `v2_${latestResult.task_id}.mp4`;
-                        await downloadFile(v2Url, v2Filename);
+                        await downloadFile(v2Url, v2Filename, 'v2');
                     } else {
                         console.warn('V2版本状态已变更，无法下载');
                         updateStatus('V2版本不可用', 'error');
@@ -1052,7 +1061,7 @@ function updateDownloadButton(result) {
                     if (result.v2_output) {
                         const v2Url = `${API_BASE_URL}/api/download/${result.task_id}?version=v2`;
                         const v2Filename = `v2_${result.task_id}.mp4`;
-                        await downloadFile(v2Url, v2Filename);
+                        await downloadFile(v2Url, v2Filename, 'v2');
                     }
                 }
             } catch (error) {
@@ -1060,7 +1069,7 @@ function updateDownloadButton(result) {
                 // 降级方案：使用当前result的值
                 if (result.v2_output) {
                     const v2Url = `${API_BASE_URL}/api/download/${result.task_id}?version=v2`;
-                    await downloadFile(v2Url, 'beatsync_v2.mp4');
+                    await downloadFile(v2Url, 'beatsync_v2.mp4', 'v2');
                 }
             }
         };
@@ -1078,8 +1087,12 @@ function updateDownloadButton(result) {
 }
 
 // 下载单个文件（优化：立即响应，不等待）
-async function downloadFile(url, filename) {
+async function downloadFile(url, filename, version = null) {
     try {
+        // 设置下载标志（防止轮询覆盖状态）
+        isDownloading = true;
+        downloadingVersion = version;
+        
         // 检测是否为移动设备和PWA环境
         const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
         const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
@@ -1087,10 +1100,17 @@ async function downloadFile(url, filename) {
                      window.navigator.standalone || 
                      document.referrer.includes('android-app://');
         
+        // 根据版本显示状态
+        if (version) {
+            const versionName = version === 'modular' ? 'Modular版本' : 'V2版本';
+            updateStatus(`正在下载${versionName}结果...`, 'processing');
+        } else {
+            updateStatus('正在下载...', 'processing');
+        }
+        
         // iOS PWA环境：直接打开新窗口到下载URL（让用户手动下载）
         if (isIOS && isPWA) {
             console.log('iOS PWA环境，打开新窗口到下载URL');
-            updateStatus('正在打开下载页面...', 'processing');
             
             // 直接打开新窗口到下载URL
             // 这样用户可以在新窗口中长按视频保存
@@ -1098,16 +1118,27 @@ async function downloadFile(url, filename) {
             
             if (downloadWindow) {
                 // 新窗口已打开
-                updateStatus('已打开下载页面。请在新页面中长按视频，选择"存储视频"保存到相册', 'info');
+                if (version) {
+                    const versionName = version === 'modular' ? 'Modular版本' : 'V2版本';
+                    updateStatus(`${versionName}下载页面已打开。请在新页面中长按视频，选择"存储视频"保存到相册`, 'info');
+                } else {
+                    updateStatus('已打开下载页面。请在新页面中长按视频，选择"存储视频"保存到相册', 'info');
+                }
                 
                 // 3秒后尝试关闭提示
                 setTimeout(() => {
-                    updateStatus('下载页面已打开', 'success');
+                    if (version) {
+                        const versionName = version === 'modular' ? 'Modular版本' : 'V2版本';
+                        updateStatus(`${versionName}下载页面已打开`, 'success');
+                    } else {
+                        updateStatus('下载页面已打开', 'success');
+                    }
                 }, 3000);
             } else {
                 // 弹窗被阻止，尝试其他方法
                 console.warn('新窗口被阻止，尝试使用blob方式');
-                return await downloadFileWithBlob(url, filename);
+                const result = await downloadFileWithBlob(url, filename, version);
+                return result;
             }
             
             return true;
@@ -1116,11 +1147,16 @@ async function downloadFile(url, filename) {
         // Android PWA或其他移动设备：使用blob方式
         if (isPWA || isMobile) {
             console.log('PWA/移动设备环境，使用blob方式强制下载');
-            return await downloadFileWithBlob(url, filename);
+            return await downloadFileWithBlob(url, filename, version);
         }
         
         // 桌面浏览器环境，使用直接下载方式（更快）
-        updateStatus('正在开始下载...', 'processing');
+        if (version) {
+            const versionName = version === 'modular' ? 'Modular版本' : 'V2版本';
+            updateStatus(`正在下载${versionName}结果...`, 'processing');
+        } else {
+            updateStatus('正在开始下载...', 'processing');
+        }
         
         const a = document.createElement('a');
         a.href = url;
@@ -1135,19 +1171,34 @@ async function downloadFile(url, filename) {
         }, 100);
         
         console.log('开始下载:', filename, '(立即响应)');
-        updateStatus('下载已开始', 'success');
+        if (version) {
+            const versionName = version === 'modular' ? 'Modular版本' : 'V2版本';
+            updateStatus(`${versionName}下载已开始`, 'success');
+        } else {
+            updateStatus('下载已开始', 'success');
+        }
         return true;
     } catch (error) {
         console.error(`下载 ${filename} 失败:`, error);
         updateStatus(`下载失败: ${error.message}`, 'error');
         return false;
+    } finally {
+        // 重置下载标志（无论成功或失败）
+        isDownloading = false;
+        downloadingVersion = null;
     }
 }
 
 // 使用blob方式下载（辅助函数）
-async function downloadFileWithBlob(url, filename) {
+async function downloadFileWithBlob(url, filename, version = null) {
     try {
-        updateStatus('正在下载...', 'processing');
+        // 根据版本显示状态
+        if (version) {
+            const versionName = version === 'modular' ? 'Modular版本' : 'V2版本';
+            updateStatus(`正在下载${versionName}结果...`, 'processing');
+        } else {
+            updateStatus('正在下载...', 'processing');
+        }
         
         const response = await fetch(url);
         if (!response.ok) {
@@ -1174,7 +1225,12 @@ async function downloadFileWithBlob(url, filename) {
             if (total > 0) {
                 const percent = Math.round((received / total) * 100);
                 if (percent % 10 === 0) { // 每10%更新一次
-                    updateStatus(`正在下载... ${percent}%`, 'processing');
+                    if (version) {
+                        const versionName = version === 'modular' ? 'Modular版本' : 'V2版本';
+                        updateStatus(`正在下载${versionName}结果... ${percent}%`, 'processing');
+                    } else {
+                        updateStatus(`正在下载... ${percent}%`, 'processing');
+                    }
                 }
             }
         }
@@ -1191,7 +1247,12 @@ async function downloadFileWithBlob(url, filename) {
                     files: [file],
                     title: filename
                 });
-                updateStatus('已通过分享保存视频', 'success');
+                if (version) {
+                    const versionName = version === 'modular' ? 'Modular版本' : 'V2版本';
+                    updateStatus(`${versionName}已通过分享保存`, 'success');
+                } else {
+                    updateStatus('已通过分享保存视频', 'success');
+                }
                 return true;
             } catch (shareError) {
                 console.warn('Web Share API失败，使用blob下载:', shareError);
@@ -1217,7 +1278,12 @@ async function downloadFileWithBlob(url, filename) {
         }, 100);
         
         console.log('下载完成:', filename);
-        updateStatus('下载已开始', 'success');
+        if (version) {
+            const versionName = version === 'modular' ? 'Modular版本' : 'V2版本';
+            updateStatus(`${versionName}下载已开始`, 'success');
+        } else {
+            updateStatus('下载已开始', 'success');
+        }
         return true;
     } catch (error) {
         console.error('Blob下载失败:', error);
