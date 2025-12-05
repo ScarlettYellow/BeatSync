@@ -1145,12 +1145,14 @@ async function downloadFile(url, filename, version = null) {
                      window.navigator.standalone || 
                      document.referrer.includes('android-app://');
         
-        // 根据版本显示状态
+        // 根据版本显示状态，并保存到全局变量
         if (version) {
             const versionName = version === 'modular' ? 'Modular版本' : 'V2版本';
-            updateStatus(`正在下载${versionName}结果...`, 'processing');
+            downloadingStatusMessage = `正在下载${versionName}结果...`;
+            updateStatus(downloadingStatusMessage, 'processing');
         } else {
-            updateStatus('正在下载...', 'processing');
+            downloadingStatusMessage = '正在下载...';
+            updateStatus(downloadingStatusMessage, 'processing');
         }
         
         // iOS PWA环境：直接打开新窗口到下载URL（让用户手动下载）
