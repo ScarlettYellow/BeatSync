@@ -2,12 +2,12 @@
 // 版本：v1.0.0
 const CACHE_NAME = 'beatsync-v1.0.0';
 const STATIC_CACHE_URLS = [
-  '/BeatSync/',
-  '/BeatSync/index.html',
-  '/BeatSync/style.css',
-  '/BeatSync/script.js',
-  '/BeatSync/favicon.svg',
-  '/BeatSync/favicon.ico'
+  '/',
+  '/index.html',
+  '/style.css',
+  '/script.js',
+  '/favicon.svg',
+  '/favicon.ico'
 ];
 
 // 安装Service Worker
@@ -102,7 +102,7 @@ self.addEventListener('fetch', (event) => {
           console.warn('[Service Worker] 网络请求失败:', error);
           // 如果是HTML请求，返回离线页面（可选）
           if (request.headers.get('accept').includes('text/html')) {
-            return caches.match('/BeatSync/index.html');
+            return caches.match('/index.html');
           }
           throw error;
         });
