@@ -328,12 +328,14 @@ def process_video_background(task_id: str, dance_path: Path, bgm_path: Path, out
                 # 检测CPU核心数，决定是否启用并行模式
                 import os
                 cpu_count = os.cpu_count() or 2
-                # 如果CPU核心数>=2，启用并行模式（两个版本同时处理）
-                # 如果只有1核，使用串行模式（避免资源竞争）
-                use_parallel = cpu_count >= 2
+                # 当前使用串行模式（避免I/O竞争导致V2变慢）
+                # 串行处理时，V2可以独占资源，保持40.7秒的处理速度
+                # 并行处理时，V2会变慢到2-3分钟（I/O竞争）
+                # 串行总耗时：30 + 40.7 = 70.7秒，比并行快1.7-2.5倍
+                use_parallel = False  # 强制使用串行模式（测试阶段）
                 
                 if perf_logger:
-                    perf_logger.log_step(f"CPU核心数: {cpu_count}, 并行模式: {use_parallel}")
+                    perf_logger.log_step(f"CPU核心数: {cpu_count}, 并行模式: {use_parallel} (串行模式：避免I/O竞争)")
                 
                 success = process_beat_sync_parallel(
                     str(dance_path),
