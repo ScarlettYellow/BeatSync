@@ -395,10 +395,6 @@ def detect_silent_segments_with_video(video_path: str, position: str = "trailing
         
     except Exception as e:
         print(f"检测{position}静音段落失败: {e}")
-        # 确保清理临时文件
-        for temp_file in ["temp_silent_detection_leading.wav", "temp_silent_detection_trailing.wav"]:
-            if os.path.exists(temp_file):
-                os.remove(temp_file)
         return 0.0
 
 def detect_black_frames_with_audio(video_path: str, position: str = "trailing", threshold: float = 0.1) -> float:
