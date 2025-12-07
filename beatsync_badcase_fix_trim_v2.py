@@ -397,7 +397,11 @@ def detect_silent_segments_with_video(video_path: str, position: str = "trailing
         print(f"检测{position}静音段落失败: {e}")
         return 0.0
 
-def detect_black_frames_with_audio(video_path: str, position: str = "trailing", threshold: float = 0.1) -> float:
+# ==================== 黑屏检测实现选择 ====================
+# 设置为True使用FFmpeg blackdetect（更快），False使用OpenCV逐帧检测（更可靠）
+USE_FFMPEG_BLACKDETECT = True
+
+def detect_black_frames_with_audio_opencv(video_path: str, position: str = "trailing", threshold: float = 0.1) -> float:
     """
     检测视频中有声无画面段落的长度（统一处理开头和末尾）
     
@@ -520,6 +524,130 @@ def detect_black_frames_with_audio(video_path: str, position: str = "trailing", 
     except Exception as e:
         print(f"检测{position}有声无画面失败: {e}")
         return 0.0
+
+def detect_black_frames_with_audio_ffmpeg(video_path: str, position: str = "trailing", threshold: float = 0.1) -> float:
+    """
+    使用FFmpeg blackdetect过滤器检测视频中有声无画面段落的长度（优化版本）
+    
+    参数:
+        video_path: 视频文件路径
+        position: "leading" 检测开头, "trailing" 检测末尾
+        threshold: 黑色画面阈值（0.0-1.0，转换为pic_th百分比）
+    
+    返回:
+        需要裁剪的时长（秒）
+    """
+    try:
+        print(f"  检测{position}有声无画面段落（使用FFmpeg blackdetect）...")
+        
+        # 获取视频总时长
+        cmd_duration = [
+            'ffprobe', '-v', 'quiet',
+            '-show_entries', 'format=duration',
+            '-of', 'csv=p=0',
+            video_path
+        ]
+        result = subprocess.run(cmd_duration, capture_output=True, text=True)
+        if result.returncode != 0:
+            print("  获取视频时长失败")
+            return 0.0
+        total_duration = float(result.stdout.strip())
+        
+        # 将threshold转换为pic_th（百分比，0-255范围）
+        # threshold是0.0-1.0，pic_th是0-255的百分比
+        pic_th = int(threshold * 255)
+        
+        # 使用FFmpeg blackdetect过滤器
+        # blackdetect参数：
+        #   duration: 黑屏持续时间阈值（秒），设置为0.1秒（检测任何黑屏）
+        #   pic_th: 图片亮度阈值（0-255），低于此值认为是黑屏
+        cmd = [
+            'ffmpeg', '-i', video_path,
+            '-vf', f'blackdetect=duration=0.1:pic_th={pic_th}',
+            '-f', 'null', '-'
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True, stderr=subprocess.STDOUT)
+        
+        # 解析FFmpeg输出，查找blackdetect的检测结果
+        # blackdetect输出格式：black_start:XX.XX black_end:XX.XX black_duration:XX.XX
+        black_segments = []
+        output_lines = result.stdout.split('\n') + result.stderr.split('\n')
+        for line in output_lines:
+            if 'black_start:' in line and 'black_end:' in line:
+                try:
+                    # 提取black_start和black_end
+                    parts = line.split()
+                    black_start = None
+                    black_end = None
+                    for part in parts:
+                        if part.startswith('black_start:'):
+                            black_start = float(part.split(':')[1])
+                        elif part.startswith('black_end:'):
+                            black_end = float(part.split(':')[1])
+                    if black_start is not None and black_end is not None:
+                        black_segments.append((black_start, black_end))
+                except (ValueError, IndexError):
+                    continue
+        
+        if not black_segments:
+            print(f"  未检测到黑屏段落")
+            return 0.0
+        
+        # 根据position选择处理方式
+        if position == "leading":
+            # 检测开头的有声无画面段落
+            # 找到第一个黑屏段落的结束时间（只考虑开头1秒内的黑屏）
+            leading_black_segments = [seg for seg in black_segments if seg[0] < 1.0]
+            if leading_black_segments:
+                first_black_end = min(seg[1] for seg in leading_black_segments)
+                leading_duration = first_black_end
+                print(f"  视频总时长: {total_duration:.3f}s")
+                print(f"  第一个黑屏段落结束时间: {leading_duration:.3f}s")
+                print(f"  检测到开头有声无画面段落: {leading_duration:.3f}s")
+                return leading_duration
+            else:
+                print(f"  未在开头检测到黑屏段落")
+                return 0.0
+        else:  # trailing
+            # 检测末尾的有声无画面段落
+            # 找到最后一个黑屏段落
+            last_black_start = max(seg[0] for seg in black_segments)
+            last_black_segments = [seg for seg in black_segments if seg[0] == last_black_start]
+            last_black_end = max(seg[1] for seg in last_black_segments)
+            
+            # 检查最后一个黑屏段落是否延伸到视频末尾（允许0.5秒误差）
+            if last_black_end >= total_duration - 0.5:
+                trailing_duration = total_duration - last_black_start
+                print(f"  视频总时长: {total_duration:.3f}s")
+                print(f"  最后一个黑屏段落开始时间: {last_black_start:.3f}s")
+                print(f"  检测到末尾有声无画面段落: {trailing_duration:.3f}s")
+                return trailing_duration
+            else:
+                print(f"  末尾没有黑屏段落")
+                return 0.0
+        
+    except Exception as e:
+        print(f"检测{position}有声无画面失败（FFmpeg blackdetect）: {e}")
+        # 如果FFmpeg方法失败，回退到OpenCV方法
+        print(f"  回退到OpenCV方法...")
+        return detect_black_frames_with_audio_opencv(video_path, position, threshold)
+
+def detect_black_frames_with_audio(video_path: str, position: str = "trailing", threshold: float = 0.1) -> float:
+    """
+    检测视频中有声无画面段落的长度（统一入口，根据USE_FFMPEG_BLACKDETECT选择实现）
+    
+    参数:
+        video_path: 视频文件路径
+        position: "leading" 检测开头, "trailing" 检测末尾
+        threshold: 黑色画面阈值
+    
+    返回:
+        需要裁剪的时长（秒）
+    """
+    if USE_FFMPEG_BLACKDETECT:
+        return detect_black_frames_with_audio_ffmpeg(video_path, position, threshold)
+    else:
+        return detect_black_frames_with_audio_opencv(video_path, position, threshold)
 
 def create_trimmed_video(dance_video: str, bgm_video: str, output_video: str, 
                         badcase_type: str, gap_duration: float,
