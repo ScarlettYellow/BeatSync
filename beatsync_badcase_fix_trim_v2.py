@@ -399,7 +399,7 @@ def detect_silent_segments_with_video(video_path: str, position: str = "trailing
 
 # ==================== 黑屏检测实现选择 ====================
 # 设置为True使用FFmpeg blackdetect（更快），False使用OpenCV逐帧检测（更可靠）
-USE_FFMPEG_BLACKDETECT = True
+USE_FFMPEG_BLACKDETECT = False
 
 def detect_black_frames_with_audio_opencv(video_path: str, position: str = "trailing", threshold: float = 0.1) -> float:
     """
