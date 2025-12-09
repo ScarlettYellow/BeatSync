@@ -1153,12 +1153,16 @@ async function downloadFile(url, filename, version = null) {
                      document.referrer.includes('android-app://');
         
         // 根据版本显示状态，并保存到全局变量
+        // 注意：如果pollTaskStatus正在运行，它会统一显示状态，这里只更新变量
         if (version) {
             const versionName = version === 'modular' ? 'Modular版本' : 'V2版本';
             downloadingStatusMessage = `正在下载${versionName}结果...`;
-            updateStatus(downloadingStatusMessage, 'processing');
         } else {
             downloadingStatusMessage = '正在下载...';
+        }
+        // 如果pollTaskStatus正在运行，它会统一显示状态
+        // 否则直接更新状态（处理已完成的情况）
+        if (!isPolling) {
             updateStatus(downloadingStatusMessage, 'processing');
         }
         
@@ -1257,12 +1261,16 @@ async function downloadFile(url, filename, version = null) {
 async function downloadFileWithBlob(url, filename, version = null) {
     try {
         // 根据版本显示状态，并保存到全局变量
+        // 注意：如果pollTaskStatus正在运行，它会统一显示状态，这里只更新变量
         if (version) {
             const versionName = version === 'modular' ? 'Modular版本' : 'V2版本';
             downloadingStatusMessage = `正在下载${versionName}结果...`;
-            updateStatus(downloadingStatusMessage, 'processing');
         } else {
             downloadingStatusMessage = '正在下载...';
+        }
+        // 如果pollTaskStatus正在运行，它会统一显示状态
+        // 否则直接更新状态（处理已完成的情况）
+        if (!isPolling) {
             updateStatus(downloadingStatusMessage, 'processing');
         }
         
