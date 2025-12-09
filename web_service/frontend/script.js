@@ -1274,17 +1274,21 @@ async function downloadFileWithBlob(url, filename, version = null) {
             received += value.length;
             
             // 更新进度（可选，对于大文件）
+            // 注意：只更新downloadingStatusMessage变量，不直接调用updateStatus
+            // 让pollTaskStatus中的逻辑来统一显示状态，避免状态冲突
             if (total > 0) {
                 const percent = Math.round((received / total) * 100);
                 if (percent % 10 === 0) { // 每10%更新一次
                     if (version) {
                         const versionName = version === 'modular' ? 'Modular版本' : 'V2版本';
                         downloadingStatusMessage = `正在下载${versionName}结果... ${percent}%`;
-                        updateStatus(downloadingStatusMessage, 'processing');
+                        // 不直接调用updateStatus，只更新变量，让pollTaskStatus统一显示
                     } else {
                         downloadingStatusMessage = `正在下载... ${percent}%`;
-                        updateStatus(downloadingStatusMessage, 'processing');
+                        // 不直接调用updateStatus，只更新变量，让pollTaskStatus统一显示
                     }
+                    // 触发一次状态更新（通过pollTaskStatus的逻辑）
+                    // 如果pollTaskStatus正在运行，它会在下次轮询时显示更新后的状态
                 }
             }
         }
