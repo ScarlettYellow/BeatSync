@@ -799,6 +799,7 @@ async function pollTaskStatus(taskId) {
     let attempts = 0;
     let pollInterval = null;
     let lastStatusTime = Date.now(); // 记录上次状态更新时间
+    const processingStartTime = Date.now(); // 记录处理开始时间
     
     // 标记轮询开始
     isPolling = true;
@@ -852,6 +853,8 @@ async function pollTaskStatus(taskId) {
                 // 处理成功
                 clearInterval(pollInterval);
                 isPolling = false; // 标记轮询结束
+                const elapsed = Math.round((Date.now() - processingStartTime) / 1000); // 计算耗时（秒）
+                console.log(`✅ 任务处理成功 (耗时${elapsed}秒)`);
                 updateStatus(result.message || '处理完成！', 'success');
                 downloadSection.style.display = 'block';
                 processBtn.disabled = false;
@@ -891,6 +894,8 @@ async function pollTaskStatus(taskId) {
                     const elapsedSeconds = attempts * 5;
                     const elapsedMinutes = Math.floor(elapsedSeconds / 60);
                     const remainingSeconds = elapsedSeconds % 60;
+                    const elapsedMs = Date.now() - processingStartTime; // 计算实际耗时（毫秒）
+                    const elapsedSec = Math.round(elapsedMs / 1000); // 转换为秒
                     
                     // 确定最终状态消息
                     let finalMessage = '处理完成！';
@@ -901,6 +906,9 @@ async function pollTaskStatus(taskId) {
                     } else if (result.v2_status === 'success') {
                         finalMessage = '处理完成！V2版本已成功生成。';
                     }
+                    
+                    // 在控制台显示处理成功日志
+                    console.log(`✅ 任务处理成功 (耗时${elapsedSec}秒)`);
                     
                     if (elapsedSeconds > 60) {
                         updateStatus(`${finalMessage} (耗时${elapsedMinutes}分${remainingSeconds}秒)`, 'success');
