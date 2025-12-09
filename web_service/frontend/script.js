@@ -3,6 +3,14 @@
 // 生产环境：使用Render后端URL（需要替换为实际URL）
 const API_BASE_URL = (() => {
     const hostname = window.location.hostname;
+    const isCapacitorNative = typeof window.Capacitor !== 'undefined' && window.Capacitor.isNativePlatform;
+    if (isCapacitorNative) {
+        const backendUrl = 'http://124.221.58.149';
+        console.log('📱 Capacitor 原生环境检测');
+        console.log('   访问地址:', window.location.href);
+        console.log('   后端URL:', backendUrl);
+        return backendUrl;
+    }
     
     // 如果是本地开发环境（localhost或127.0.0.1）
     if (hostname === 'localhost' || hostname === '127.0.0.1') {

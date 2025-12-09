@@ -3,7 +3,9 @@
   "appName": "BeatSync",
   "webDir": "web_service/frontend",
   "server": {
-    "url": "https://124.221.58.149",
-    "cleartext": false
+    "cleartext": true,
+    "allowNavigation": [
+      "124.221.58.149"
+    ]
   }
 }
