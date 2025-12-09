@@ -800,6 +800,9 @@ async function pollTaskStatus(taskId) {
     let pollInterval = null;
     let lastStatusTime = Date.now(); // 记录上次状态更新时间
     
+    // 标记轮询开始
+    isPolling = true;
+    
     const poll = async () => {
         attempts++;
         
@@ -848,6 +851,7 @@ async function pollTaskStatus(taskId) {
             if (result.status === 'success') {
                 // 处理成功
                 clearInterval(pollInterval);
+                isPolling = false; // 标记轮询结束
                 updateStatus(result.message || '处理完成！', 'success');
                 downloadSection.style.display = 'block';
                 processBtn.disabled = false;
@@ -855,6 +859,7 @@ async function pollTaskStatus(taskId) {
             } else if (result.status === 'failed') {
                 // 处理失败
                 clearInterval(pollInterval);
+                isPolling = false; // 标记轮询结束
                 const errorMsg = result.error || result.message || '处理失败';
                 // 显示详细错误信息（如果可用）
                 let displayMsg = `处理失败: ${errorMsg}`;
@@ -882,6 +887,7 @@ async function pollTaskStatus(taskId) {
                 // 如果所有版本都已完成，停止轮询并更新状态
                 if (allDone) {
                     clearInterval(pollInterval);
+                    isPolling = false; // 标记轮询结束
                     const elapsedSeconds = attempts * 5;
                     const elapsedMinutes = Math.floor(elapsedSeconds / 60);
                     const remainingSeconds = elapsedSeconds % 60;
@@ -951,6 +957,7 @@ async function pollTaskStatus(taskId) {
         // 超时检查
         if (attempts >= maxAttempts) {
             clearInterval(pollInterval);
+            isPolling = false; // 标记轮询结束
             updateStatus('处理超时：处理时间超过20分钟。Render免费层资源有限，建议使用较小的测试视频或稍后重试。', 'error');
             processBtn.disabled = false;
             processBtn.textContent = '开始处理';
@@ -1201,9 +1208,12 @@ async function downloadFile(url, filename, version = null) {
         if (version) {
             const versionName = version === 'modular' ? 'Modular版本' : 'V2版本';
             downloadingStatusMessage = `正在下载${versionName}结果...`;
-            updateStatus(downloadingStatusMessage, 'processing');
         } else {
             downloadingStatusMessage = '正在开始下载...';
+        }
+        // 如果pollTaskStatus正在运行，它会统一显示状态
+        // 否则直接更新状态（处理已完成的情况）
+        if (!isPolling) {
             updateStatus(downloadingStatusMessage, 'processing');
         }
         
@@ -1220,11 +1230,15 @@ async function downloadFile(url, filename, version = null) {
         }, 100);
         
         console.log('开始下载:', filename, '(立即响应)');
-        if (version) {
-            const versionName = version === 'modular' ? 'Modular版本' : 'V2版本';
-            updateStatus(`${versionName}下载已开始`, 'success');
-        } else {
-            updateStatus('下载已开始', 'success');
+        // 如果pollTaskStatus正在运行，不更新状态（让它统一显示）
+        // 否则更新状态（处理已完成的情况）
+        if (!isPolling) {
+            if (version) {
+                const versionName = version === 'modular' ? 'Modular版本' : 'V2版本';
+                updateStatus(`${versionName}下载已开始`, 'success');
+            } else {
+                updateStatus('下载已开始', 'success');
+            }
         }
         return true;
     } catch (error) {
