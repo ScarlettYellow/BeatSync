@@ -1191,13 +1191,13 @@ async function downloadFile(url, filename, version = null) {
             return true;
         }
         
-        // Android PWA或其他移动设备：使用blob方式
-        if (isPWA || isMobile) {
-            console.log('PWA/移动设备环境，使用blob方式强制下载');
+        // PWA环境：使用blob方式（确保在PWA中能正确下载）
+        if (isPWA) {
+            console.log('PWA环境，使用blob方式强制下载');
             return await downloadFileWithBlob(url, filename, version);
         }
         
-        // 桌面浏览器环境，使用直接下载方式（更快）
+        // 非PWA环境（包括移动浏览器和桌面浏览器）：使用直接下载方式（立即响应）
         if (version) {
             const versionName = version === 'modular' ? 'Modular版本' : 'V2版本';
             downloadingStatusMessage = `正在下载${versionName}结果...`;
