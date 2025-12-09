@@ -1,0 +1,9 @@
+{
+  "appId": "com.beatsync.app",
+  "appName": "BeatSync",
+  "webDir": "web_service/frontend",
+  "server": {
+    "url": "https://124.221.58.149",
+    "cleartext": false
+  }
+}

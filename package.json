@@ -1,0 +1,26 @@
+{
+  "name": "beatsync",
+  "version": "1.0.0",
+  "description": "BeatSync - 视频音轨自动对齐和替换工具",
+  "main": "index.js",
+  "scripts": {
+    "cap:sync": "npx cap sync",
+    "cap:open:ios": "npx cap open ios",
+    "cap:open:android": "npx cap open android",
+    "cap:copy": "npx cap copy"
+  },
+  "keywords": [
+    "beatsync",
+    "video",
+    "audio",
+    "alignment"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@capacitor/android": "^8.0.0",
+    "@capacitor/cli": "^8.0.0",
+    "@capacitor/core": "^8.0.0",
+    "@capacitor/ios": "^8.0.0"
+  }
+}

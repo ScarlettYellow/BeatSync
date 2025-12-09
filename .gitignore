@@ -1,3 +1,22 @@
+# Node / JS
+node_modules/
+npm-debug.log*
+yarn-error.log*
+
+# iOS / Android build artifacts
+android/app/build/
+android/build/
+ios/App/App/public/
+*.xcuserstate
+*.xccheckout
+*.xcworkspace/xcuserdata/
+
+# Project outputs / logs
+performancelog/
+outputs/
+
+# macOS
+.DS_Store
 # BeatSync Git 忽略文件
 
 # Python
