@@ -1,11 +1,164 @@
+// 检测是否为 Capacitor 原生 App 环境（全局变量）
+const isCapacitorNative = typeof window.Capacitor !== 'undefined' && window.Capacitor.isNativePlatform;
+
+// 原生分享/保存功能开关（已回退到分享菜单方案）
+const USE_NATIVE_SAVE_TO_GALLERY = false;
+
+// App端：禁用双击放大
+function applyViewportForApp() {
+    const viewport = document.querySelector('meta[name="viewport"]');
+    if (viewport) {
+        viewport.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no');
+    }
+}
+
+// 按钮加载态辅助
+function setButtonLoading(button, loadingText) {
+    if (!button) return;
+    button.dataset.originalText = button.dataset.originalText || (button.querySelector('.btn-text') ? button.querySelector('.btn-text').textContent : button.textContent);
+    if (button.querySelector('.btn-text')) {
+        button.querySelector('.btn-text').textContent = loadingText;
+    } else {
+        button.textContent = loadingText;
+    }
+    button.classList.add('btn-loading');
+    button.disabled = true;
+}
+
+function clearButtonLoading(button) {
+    if (!button) return;
+    const originalText = button.dataset.originalText;
+    if (originalText) {
+        if (button.querySelector('.btn-text')) {
+            button.querySelector('.btn-text').textContent = originalText;
+        } else {
+            button.textContent = originalText;
+        }
+        delete button.dataset.originalText;
+    }
+    button.classList.remove('btn-loading');
+    button.disabled = false;
+}
+
+// App端：基础交互守护（禁用长按菜单/选中/手势缩放）
+function applyNativeInteractionGuards() {
+    document.body.classList.add('is-native');
+    const preventDefault = (e) => e.preventDefault();
+    document.addEventListener('contextmenu', preventDefault, { passive: false });
+    document.addEventListener('selectstart', preventDefault, { passive: false });
+    document.addEventListener('gesturestart', preventDefault, { passive: false });
+    // 保持触摸滚动，但禁止回弹放大
+    document.documentElement.style.overscrollBehaviorY = 'contain';
+    document.body.style.overscrollBehaviorY = 'contain';
+}
+
+// 保持唤醒（下载/处理时防息屏）
+let wakeLockSentinel = null;
+let wakeLockRequestCount = 0;
+async function requestWakeLock(reason = 'general') {
+    wakeLockRequestCount += 1;
+    if (!('wakeLock' in navigator)) return;
+    if (wakeLockSentinel) return;
+    try {
+        wakeLockSentinel = await navigator.wakeLock.request('screen');
+        wakeLockSentinel.addEventListener('release', () => {
+            wakeLockSentinel = null;
+        });
+        console.log('🔒 WakeLock acquired:', reason);
+    } catch (err) {
+        console.warn('WakeLock request failed:', err);
+        wakeLockSentinel = null;
+    }
+}
+
+function releaseWakeLock(reason = 'general') {
+    wakeLockRequestCount = Math.max(0, wakeLockRequestCount - 1);
+    if (wakeLockSentinel && wakeLockRequestCount === 0) {
+        wakeLockSentinel.release().catch(() => {});
+        wakeLockSentinel = null;
+        console.log('🔓 WakeLock released:', reason);
+    }
+}
+
+// 响应式间距系统：根据屏幕尺寸动态调整间距
+function getResponsiveSpacing() {
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+    const isLandscape = width > height;
+    const diagonal = Math.sqrt(width * width + height * height);
+    
+    // 屏幕尺寸分类
+    let screenSize;
+    if (width < 375) {
+        screenSize = 'small';      // 小屏手机（iPhone SE等）
+    } else if (width < 768) {
+        screenSize = 'medium';     // 标准手机
+    } else if (width < 1024) {
+        screenSize = 'large';      // 大屏手机/小平板
+    } else {
+        screenSize = 'xlarge';     // 平板/桌面
+    }
+    
+    // 根据屏幕尺寸返回间距配置
+    const spacingConfig = {
+        small: {
+            containerGap: 12,          // 紧凑间距
+            sectionGap: 12,
+            sectionMargin: 12,
+            h1MarginBottom: 16,
+            uploadAreaPadding: '18px 14px',
+            uploadAreaMinHeight: 90,
+            containerPaddingTop: 20,
+            containerPaddingBottom: 20
+        },
+        medium: {
+            containerGap: 16,          // 标准间距
+            sectionGap: 16,
+            sectionMargin: 16,
+            h1MarginBottom: 20,
+            uploadAreaPadding: '20px 16px',
+            uploadAreaMinHeight: 100,
+            containerPaddingTop: 24,
+            containerPaddingBottom: 24
+        },
+        large: {
+            containerGap: 24,          // 增加间距
+            sectionGap: 24,
+            sectionMargin: 24,
+            h1MarginBottom: 28,
+            uploadAreaPadding: '28px 20px',
+            uploadAreaMinHeight: 120,
+            containerPaddingTop: 32,
+            containerPaddingBottom: 32
+        },
+        xlarge: {
+            containerGap: 32,          // 更大间距
+            sectionGap: 32,
+            sectionMargin: 32,
+            h1MarginBottom: 36,
+            uploadAreaPadding: '32px 24px',
+            uploadAreaMinHeight: 140,
+            containerPaddingTop: 40,
+            containerPaddingBottom: 40
+        }
+    };
+    
+    return {
+        ...spacingConfig[screenSize],
+        screenSize,
+        width,
+        height,
+        isLandscape
+    };
+}
+
 // API基础URL（根据环境自动选择）
 // 开发环境：使用localhost或局域网IP
 // 生产环境：使用Render后端URL（需要替换为实际URL）
 const API_BASE_URL = (() => {
     const hostname = window.location.hostname;
-    const isCapacitorNative = typeof window.Capacitor !== 'undefined' && window.Capacitor.isNativePlatform;
     if (isCapacitorNative) {
-        const backendUrl = 'http://124.221.58.149';
+        const backendUrl = 'https://beatsync.site';
         console.log('📱 Capacitor 原生环境检测');
         console.log('   访问地址:', window.location.href);
         console.log('   后端URL:', backendUrl);
@@ -33,13 +186,11 @@ const API_BASE_URL = (() => {
     }
     
     // 生产环境：使用腾讯云服务器（HTTPS）
-    // 临时方案：使用IP地址（域名备案审核中，备案通过后改回域名）
     // 正式方案：使用域名 beatsync.site（通过Nginx反向代理，端口443，Let's Encrypt证书）
-    const backendUrl = window.API_BASE_URL || 'https://124.221.58.149';
-    console.log('🟢 生产环境检测（腾讯云服务器 - HTTPS - 临时使用IP地址）');
+    const backendUrl = window.API_BASE_URL || 'https://beatsync.site';
+    console.log('🟢 生产环境检测（腾讯云服务器 - HTTPS - 使用域名）');
     console.log('   访问地址:', window.location.href);
     console.log('   后端URL:', backendUrl);
-    console.log('   ⚠️ 临时方案：域名备案审核中，备案通过后改回域名');
     return backendUrl;
 })();
 
@@ -67,6 +218,11 @@ let state = {
 let isDownloading = false;
 let downloadingVersion = null;
 let downloadingStatusMessage = null; // 当前显示的下载状态消息
+let currentDownloadContext = null; // 保存当前下载的上下文，用于恢复
+
+// 轮询状态管理
+let isPolling = false;
+let currentPollInterval = null; // 当前轮询定时器
 
 // DOM元素
 const danceFileInput = document.getElementById('dance-file');
@@ -76,6 +232,7 @@ const statusText = document.getElementById('status-text');
 const downloadSection = document.getElementById('download-section');
 const downloadModularBtn = document.getElementById('download-modular-btn');
 const downloadV2Btn = document.getElementById('download-v2-btn');
+const resetBtn = document.getElementById('reset-btn');
 // 在线预览功能已移除
 // const previewModularBtn = document.getElementById('preview-modular-btn');
 // const previewV2Btn = document.getElementById('preview-v2-btn');
@@ -86,14 +243,316 @@ const v2Result = document.getElementById('v2-result');
 const uploadProgressContainer = document.getElementById('upload-progress-container');
 const uploadProgressFill = document.getElementById('upload-progress-fill');
 const uploadProgressText = document.getElementById('upload-progress-text');
+const statusSkeleton = document.getElementById('status-skeleton');
+
+function showProgress(percent = 0, label = '') {
+    if (!uploadProgressContainer || !uploadProgressFill || !uploadProgressText) return;
+    uploadProgressContainer.style.display = 'flex';
+    uploadProgressFill.style.width = `${Math.max(0, Math.min(100, percent))}%`;
+    uploadProgressText.textContent = label || `${percent}%`;
+}
+
+function hideProgress() {
+    if (!uploadProgressContainer || !uploadProgressFill || !uploadProgressText) return;
+    uploadProgressContainer.style.display = 'none';
+    uploadProgressFill.style.width = '0%';
+    uploadProgressText.textContent = '0%';
+}
+
+// 监听页面可见性变化和app状态变化，防止下载中断
+let downloadReader = null; // 保存当前的reader，用于检测是否中断
+
+document.addEventListener('visibilitychange', () => {
+    // 当页面重新可见时，如果正在下载，重新请求wakeLock
+    if (!document.hidden && isDownloading) {
+        console.log('📱 页面重新可见，正在下载中，重新请求wakeLock');
+        requestWakeLock('download-resume');
+    }
+});
+
+// 监听Capacitor App状态变化（如果可用）
+if (typeof window.Capacitor !== 'undefined' && window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
+    window.Capacitor.Plugins.App.addListener('appStateChange', (state) => {
+        console.log('📱 App状态变化:', state.isActive ? '激活' : '后台');
+        // 当app从后台恢复时
+        if (state.isActive && isDownloading && currentDownloadContext) {
+            console.log('📱 App恢复，检查下载状态');
+            // 重新请求wakeLock
+            requestWakeLock('download-resume');
+            // 检查reader是否还在工作（通过检查是否有pending的read）
+            // 如果reader已断开，需要重新开始下载
+            if (downloadReader) {
+                // 尝试检测reader是否还可用
+                // 如果不可用，提示用户下载已中断
+                console.warn('⚠️ 检测到app恢复，但ReadableStream可能已断开');
+                // 注意：iOS系统在后台会断开ReadableStream，无法恢复
+                // 只能提示用户重新下载
+            }
+        }
+    });
+}
 
 // 初始化
 document.addEventListener('DOMContentLoaded', () => {
+    // 仅在App端应用特殊样式（区分App端和网页端）
+    if (isCapacitorNative) {
+        // 禁用双击缩放（仅App端）
+        applyViewportForApp();
+        applyNativeInteractionGuards();
+
+        // 计算安全区域值
+        const safeAreaTop = parseInt(getComputedStyle(document.documentElement).getPropertyValue('env(safe-area-inset-top)') || '0', 10) || 0;
+        const safeAreaBottom = parseInt(getComputedStyle(document.documentElement).getPropertyValue('env(safe-area-inset-bottom)') || '0', 10) || 0;
+        
+        // 设置body的padding（App端）- 减少顶部留白10px
+        const bodyPaddingTop = Math.max(90, safeAreaTop ? safeAreaTop + 30 : 70);
+        document.body.style.setProperty('padding-top', `${bodyPaddingTop}px`, 'important');
+        document.body.style.setProperty('padding-bottom', `${Math.max(20, safeAreaBottom)}px`, 'important');
+        
+        // 响应式优化：根据屏幕尺寸动态调整间距
+        const spacing = getResponsiveSpacing();
+        const container = document.querySelector('.container');
+        if (container) {
+            // 优化顶部padding：根据屏幕尺寸和安全区域适配
+            const paddingTop = Math.max(spacing.containerPaddingTop, safeAreaTop + 16);
+            const paddingBottom = Math.max(spacing.containerPaddingBottom, safeAreaBottom + 16);
+            
+            // 关键修复：移除min-height，让内容自然排列，不强制占满屏幕
+            container.style.setProperty('min-height', 'auto', 'important');
+            container.style.setProperty('padding-top', `${paddingTop}px`, 'important');
+            container.style.setProperty('padding-bottom', `${paddingBottom}px`, 'important');
+            // 使用响应式间距系统
+            container.style.setProperty('gap', `${spacing.containerGap}px`, 'important');
+            
+            // 优化上传区域间距
+            const uploadSection = document.querySelector('.upload-section');
+            if (uploadSection) {
+                uploadSection.style.setProperty('gap', `${spacing.sectionGap}px`, 'important');
+                uploadSection.style.setProperty('margin-bottom', `${spacing.sectionMargin}px`, 'important');
+                // 关键修复：移除flex: 1，避免占据所有剩余空间
+                uploadSection.style.setProperty('flex', 'none', 'important');
+            }
+            
+            // 优化操作区域：根据屏幕尺寸调整间距
+            const actionSection = document.querySelector('.action-section');
+            if (actionSection) {
+                actionSection.style.setProperty('margin-bottom', `${Math.max(12, spacing.sectionMargin - 4)}px`, 'important');
+                actionSection.style.setProperty('margin-top', '0px', 'important');
+            }
+            
+            // 优化状态区域
+            const statusSection = document.querySelector('.status-section');
+            if (statusSection) {
+                statusSection.style.setProperty('margin-bottom', `${Math.max(12, spacing.sectionMargin - 4)}px`, 'important');
+                statusSection.style.setProperty('min-height', 'auto', 'important');
+            }
+            
+            // 优化标题：根据屏幕尺寸调整间距
+            const h1 = document.querySelector('h1');
+            if (h1) {
+                h1.style.setProperty('margin-bottom', `${spacing.h1MarginBottom}px`, 'important');
+                h1.style.setProperty('margin-top', '0px', 'important');
+                h1.style.setProperty('padding-top', '0px', 'important');
+            }
+            
+            // 优化上传卡片：根据屏幕尺寸调整内边距
+            const uploadAreas = document.querySelectorAll('.upload-area');
+            uploadAreas.forEach(area => {
+                area.style.setProperty('padding', spacing.uploadAreaPadding, 'important');
+                area.style.setProperty('min-height', `${spacing.uploadAreaMinHeight}px`, 'important');
+            });
+            
+            console.log('[UI优化] App端响应式布局优化:', {
+                screenSize: spacing.screenSize,
+                screenWidth: spacing.width,
+                screenHeight: spacing.height,
+                isLandscape: spacing.isLandscape,
+                safeAreaTop,
+                safeAreaBottom,
+                paddingTop,
+                paddingBottom,
+                bodyPaddingTop,
+                containerGap: spacing.containerGap,
+                sectionGap: spacing.sectionGap,
+                minHeight: 'auto',
+                uploadSectionFlex: 'none'
+            });
+        }
+        
+        // 隐藏App端滚动条
+        document.documentElement.style.setProperty('overflow-y', 'hidden', 'important');
+        document.body.style.setProperty('overflow-y', 'hidden', 'important');
+        
+        // 添加内联样式到head（更可靠）
+        const styleElement = document.getElementById('app-specific-styles');
+        if (styleElement) {
+            styleElement.textContent = `
+                /* App端专用样式 - 减少顶部留白10px */
+                body {
+                    padding-top: ${Math.max(90, safeAreaTop ? safeAreaTop + 30 : 70)}px !important;
+                    padding-bottom: ${Math.max(20, safeAreaBottom)}px !important;
+                    overflow-y: hidden !important;
+                }
+                
+                html {
+                    overflow-y: hidden !important;
+                }
+                
+                /* 响应式优化：根据屏幕尺寸动态调整（通过JavaScript动态设置） */
+                .container {
+                    min-height: auto !important;
+                }
+                
+                .upload-section {
+                    flex: none !important;
+                }
+                
+                .status-section {
+                    min-height: auto !important;
+                }
+                
+                h1 {
+                    margin-top: 0px !important;
+                    padding-top: 0px !important;
+                }
+                
+                /* 隐藏滚动条 */
+                ::-webkit-scrollbar {
+                    display: none !important;
+                }
+                
+                * {
+                    -ms-overflow-style: none !important;
+                    scrollbar-width: none !important;
+                }
+            `;
+        }
+    }
+    
+    // 手机网页端：应用响应式布局优化（非App端但移动设备）
+    if (!isCapacitorNative) {
+        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+        if (isMobile) {
+            // 计算安全区域值（手机网页端）
+            const safeAreaTop = parseInt(getComputedStyle(document.documentElement).getPropertyValue('env(safe-area-inset-top)') || '0', 10) || 0;
+            const safeAreaBottom = parseInt(getComputedStyle(document.documentElement).getPropertyValue('env(safe-area-inset-bottom)') || '0', 10) || 0;
+            
+            // 设置body的padding-top，与App端保持一致（减少顶部留白10px）
+            const bodyPaddingTop = Math.max(70, safeAreaTop ? safeAreaTop + 30 : 50);
+            document.body.style.setProperty('padding-top', `${bodyPaddingTop}px`, 'important');
+            document.body.style.setProperty('padding-bottom', `${Math.max(20, safeAreaBottom)}px`, 'important');
+            
+            // 响应式优化：根据屏幕尺寸动态调整间距
+            const spacing = getResponsiveSpacing();
+            
+            // 应用响应式布局优化
+            const container = document.querySelector('.container');
+            if (container) {
+                const paddingTop = Math.max(spacing.containerPaddingTop, safeAreaTop + 16);
+                const paddingBottom = Math.max(spacing.containerPaddingBottom, safeAreaBottom + 16);
+                container.style.setProperty('min-height', 'auto', 'important');
+                container.style.setProperty('gap', `${spacing.containerGap}px`, 'important');
+                container.style.setProperty('padding-top', `${paddingTop}px`, 'important');
+                container.style.setProperty('padding-bottom', `${paddingBottom}px`, 'important');
+            }
+            
+            const uploadSection = document.querySelector('.upload-section');
+            if (uploadSection) {
+                uploadSection.style.setProperty('flex', 'none', 'important');
+                uploadSection.style.setProperty('gap', `${spacing.sectionGap}px`, 'important');
+                uploadSection.style.setProperty('margin-bottom', `${spacing.sectionMargin}px`, 'important');
+            }
+            
+            const actionSection = document.querySelector('.action-section');
+            if (actionSection) {
+                actionSection.style.setProperty('margin-bottom', `${Math.max(12, spacing.sectionMargin - 4)}px`, 'important');
+                actionSection.style.setProperty('margin-top', '0px', 'important');
+            }
+            
+            const statusSection = document.querySelector('.status-section');
+            if (statusSection) {
+                statusSection.style.setProperty('margin-bottom', `${Math.max(12, spacing.sectionMargin - 4)}px`, 'important');
+                statusSection.style.setProperty('min-height', 'auto', 'important');
+            }
+            
+            const h1 = document.querySelector('h1');
+            if (h1) {
+                h1.style.setProperty('margin-bottom', `${spacing.h1MarginBottom}px`, 'important');
+                h1.style.setProperty('margin-top', '0px', 'important');
+                h1.style.setProperty('padding-top', '0px', 'important');
+            }
+            
+            const uploadAreas = document.querySelectorAll('.upload-area');
+            uploadAreas.forEach(area => {
+                area.style.setProperty('padding', spacing.uploadAreaPadding, 'important');
+                area.style.setProperty('min-height', `${spacing.uploadAreaMinHeight}px`, 'important');
+            });
+            
+            console.log('[UI优化] 手机网页端响应式布局优化:', {
+                screenSize: spacing.screenSize,
+                screenWidth: spacing.width,
+                screenHeight: spacing.height,
+                safeAreaTop,
+                safeAreaBottom,
+                bodyPaddingTop
+            });
+        }
+    }
+    
+    // 响应式优化：监听窗口大小变化，动态调整间距
+    let resizeTimer;
+    function handleResize() {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(() => {
+            if (isCapacitorNative) {
+                // App端：重新应用响应式间距
+                const safeAreaTop = parseInt(getComputedStyle(document.documentElement).getPropertyValue('env(safe-area-inset-top)') || '0', 10) || 0;
+                const safeAreaBottom = parseInt(getComputedStyle(document.documentElement).getPropertyValue('env(safe-area-inset-bottom)') || '0', 10) || 0;
+                const spacing = getResponsiveSpacing();
+                
+                const container = document.querySelector('.container');
+                if (container) {
+                    const paddingTop = Math.max(spacing.containerPaddingTop, safeAreaTop + 16);
+                    const paddingBottom = Math.max(spacing.containerPaddingBottom, safeAreaBottom + 16);
+                    container.style.setProperty('gap', `${spacing.containerGap}px`, 'important');
+                    container.style.setProperty('padding-top', `${paddingTop}px`, 'important');
+                    container.style.setProperty('padding-bottom', `${paddingBottom}px`, 'important');
+                }
+                
+                const uploadSection = document.querySelector('.upload-section');
+                if (uploadSection) {
+                    uploadSection.style.setProperty('gap', `${spacing.sectionGap}px`, 'important');
+                    uploadSection.style.setProperty('margin-bottom', `${spacing.sectionMargin}px`, 'important');
+                }
+                
+                const h1 = document.querySelector('h1');
+                if (h1) {
+                    h1.style.setProperty('margin-bottom', `${spacing.h1MarginBottom}px`, 'important');
+                }
+                
+                const uploadAreas = document.querySelectorAll('.upload-area');
+                uploadAreas.forEach(area => {
+                    area.style.setProperty('padding', spacing.uploadAreaPadding, 'important');
+                    area.style.setProperty('min-height', `${spacing.uploadAreaMinHeight}px`, 'important');
+                });
+            }
+        }, 150); // 防抖：150ms
+    }
+    
+    window.addEventListener('resize', handleResize);
+    window.addEventListener('orientationchange', handleResize);
+    
+    // 设置重置按钮事件
+    if (resetBtn) {
+        resetBtn.addEventListener('click', handleReset);
+    }
+    
     // 重置所有状态（确保刷新后清空之前的记录）
     resetState();
     setupFileInputs();
     setupDragAndDrop();
     updateProcessButton();
+    updateResetButtonVisibility();
     
     // 手机端优化：隐藏拖拽提示
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
@@ -124,8 +583,20 @@ function resetState() {
     document.getElementById('dance-info').style.display = 'none';
     document.getElementById('bgm-info').style.display = 'none';
     
-    // 重置状态显示
+    // 停止轮询（如果有）
+    if (isPolling) {
+        stopPolling();
+    }
+    
+    // 重置下载状态（必须在更新状态显示之前清除，防止下载函数继续更新）
+    isDownloading = false;
+    downloadingVersion = null;
+    downloadingStatusMessage = null;
+    
+    // 重置状态显示（必须在清除下载状态后立即更新，确保覆盖下载状态）
     updateStatus('等待上传文件...', '');
+    if (statusSkeleton) statusSkeleton.style.display = 'none';
+    hideProgress();
     
     // 隐藏下载按钮
     downloadSection.style.display = 'none';
@@ -143,6 +614,97 @@ function resetState() {
     // 重置处理按钮
     processBtn.disabled = true;
     processBtn.textContent = '开始处理';
+    
+    // 隐藏重置按钮（无内容时）
+    updateResetButtonVisibility();
+    
+    releaseWakeLock('processing');
+    releaseWakeLock('download');
+}
+
+// 检查是否有内容需要重置
+function hasContentToReset() {
+    return state.danceFileId !== null || 
+           state.bgmFileId !== null || 
+           state.taskId !== null ||
+           state.danceFile !== null ||
+           state.bgmFile !== null ||
+           downloadSection.style.display !== 'none' ||
+           isPolling ||
+           isDownloading;
+}
+
+// 更新重置按钮显示状态
+function updateResetButtonVisibility() {
+    if (resetBtn) {
+        if (hasContentToReset()) {
+            resetBtn.style.display = 'flex';
+        } else {
+            resetBtn.style.display = 'none';
+        }
+    }
+}
+
+// 清空/重置任务（带确认）
+async function handleReset() {
+    // 检查是否有内容需要重置
+    if (!hasContentToReset()) {
+        return;
+    }
+    
+    // 移动端友好的确认对话框
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    let confirmed = false;
+    
+    if (isMobile) {
+        // 移动端：使用原生confirm（更友好）
+        confirmed = confirm('确定要清空当前任务吗？\n\n这将清除：\n• 已上传的文件\n• 处理进度\n• 下载结果');
+    } else {
+        // 桌面端：使用更详细的确认
+        confirmed = confirm('确定要清空当前任务吗？\n\n这将清除：\n• 已上传的文件\n• 处理进度\n• 下载结果\n\n此操作不可撤销。');
+    }
+    
+    if (!confirmed) {
+        return;
+    }
+    
+    // 执行重置
+    console.log('🔄 用户触发清空任务');
+    
+    // 添加视觉反馈：按钮旋转动画
+    if (resetBtn) {
+        resetBtn.style.pointerEvents = 'none';
+        resetBtn.classList.add('resetting');
+        
+        // 重置状态
+        resetState();
+        
+        // 更新处理按钮状态
+        updateProcessButton();
+        
+        // 显示成功反馈
+        updateStatus('任务已清空', 'success');
+        
+        // 恢复按钮状态（延迟，让动画完成）
+        setTimeout(() => {
+            if (resetBtn) {
+                resetBtn.classList.remove('resetting');
+                resetBtn.style.pointerEvents = 'auto';
+            }
+            // 清除状态消息
+            setTimeout(() => {
+                updateStatus('等待上传文件...', '');
+            }, 1500);
+        }, 500);
+    } else {
+        // 如果没有按钮，直接重置
+        resetState();
+        updateProcessButton();
+        updateStatus('任务已清空', 'success');
+        setTimeout(() => {
+            updateStatus('等待上传文件...', '');
+        }, 1500);
+    }
 }
 
 // 设置文件输入
@@ -274,9 +836,9 @@ async function checkBackendHealth(retryCount = 0) {
                 fetchError.message.includes('TLS') ||
                 fetchError.message.includes('ERR_CERT') ||
                 fetchError.message.includes('ERR_CERT_COMMON_NAME_INVALID')) {
-                console.warn('⚠️ SSL证书错误：证书是为域名签发的，使用IP地址访问时需要接受证书警告');
-                console.warn('   解决方法：请先手动访问 https://124.221.58.149/api/health 并接受证书警告');
-                console.warn('   步骤：1. 点击"高级" 2. 点击"继续访问" 3. 刷新页面重试');
+                console.warn('⚠️ SSL证书错误：请检查SSL证书配置');
+                console.warn('   解决方法：请先手动访问健康检查地址确认证书状态');
+                console.warn(`   健康检查地址：${API_BASE_URL}/api/health`);
             }
             
             // 如果是CORS错误，提供更详细的提示
@@ -341,20 +903,10 @@ async function uploadFile(file, fileType, retryCount = 0) {
             
             errorMsg += `\n手动检查：访问 ${API_BASE_URL}/api/health 查看服务状态\n`;
             
-            // 针对HTTPS自签名证书的特殊提示
-            if (API_BASE_URL.startsWith('https://') && API_BASE_URL.includes('124.221.58.149')) {
-                errorMsg += `\n⚠️ SSL证书错误（临时方案）：\n`;
-                errorMsg += `当前使用IP地址访问，但SSL证书是为域名签发的，浏览器会拒绝连接。\n`;
-                errorMsg += `解决方法：\n`;
-                errorMsg += `1. 点击下方链接打开健康检查页面：\n`;
-                errorMsg += `   ${API_BASE_URL}/api/health\n`;
-                errorMsg += `2. 在打开的页面中，点击"高级"或"Advanced"\n`;
-                errorMsg += `3. 点击"继续访问"或"Proceed to 124.221.58.149 (unsafe)"\n`;
-                errorMsg += `4. 返回本页面，点击"重试"按钮\n`;
-                errorMsg += `\n注意：这是临时方案，域名备案通过后将自动恢复。\n`;
-            } else if (API_BASE_URL.startsWith('https://')) {
+            // HTTPS证书提示
+            if (API_BASE_URL.startsWith('https://')) {
                 errorMsg += `\n⚠️ HTTPS证书提示：\n`;
-                errorMsg += `如果使用自签名证书，某些浏览器（如夸克、微信）可能需要先手动访问健康检查地址并接受证书。\n`;
+                errorMsg += `如果遇到SSL证书错误，某些浏览器（如夸克、微信）可能需要先手动访问健康检查地址并接受证书。\n`;
                 errorMsg += `请先访问：${API_BASE_URL}/api/health\n`;
             }
             
@@ -456,7 +1008,7 @@ async function uploadFile(file, fileType, retryCount = 0) {
                 
                 // 请求完成
                 xhr.addEventListener('load', () => {
-                    clearTimeout(timeoutId);
+            clearTimeout(timeoutId);
                     if (xhr.status >= 200 && xhr.status < 300) {
                         try {
                             const result = JSON.parse(xhr.responseText);
@@ -554,9 +1106,9 @@ async function uploadFile(file, fileType, retryCount = 0) {
             } catch (e) {
                 // 如果响应不是JSON，尝试读取文本
                 try {
-                    const errorText = await response.text();
-                    console.error('上传错误响应:', errorText);
-                    errorDetail = errorText || `HTTP ${response.status}: ${response.statusText}`;
+                const errorText = await response.text();
+                console.error('上传错误响应:', errorText);
+                errorDetail = errorText || `HTTP ${response.status}: ${response.statusText}`;
                 } catch (textError) {
                     errorDetail = `HTTP ${response.status}: ${response.statusText}`;
                 }
@@ -579,7 +1131,7 @@ async function uploadFile(file, fileType, retryCount = 0) {
                 console.log('✅ 上传成功（手动解析），解析后的响应:', result);
             } catch (textParseError) {
                 console.error('❌ 文本解析也失败:', textParseError);
-                throw new Error('服务器响应格式错误');
+            throw new Error('服务器响应格式错误');
             }
         }
         
@@ -593,6 +1145,9 @@ async function uploadFile(file, fileType, retryCount = 0) {
             state.bgmFile = file;
             showFileInfo('bgm', file.name, formatFileSize(result.size));
         }
+        
+        // 更新重置按钮显示状态
+        updateResetButtonVisibility();
         
         // 确保进度条显示100%，然后延迟隐藏
         uploadProgressFill.style.width = '100%';
@@ -695,6 +1250,9 @@ async function processVideo() {
         return;
     }
     
+    setButtonLoading(processBtn, '提交中...');
+    if (statusSkeleton) statusSkeleton.style.display = 'flex';
+    requestWakeLock('processing');
     const formData = new FormData();
     formData.append('dance_file_id', state.danceFileId);
     formData.append('bgm_file_id', state.bgmFileId);
@@ -721,17 +1279,17 @@ async function processVideo() {
         const startTime = Date.now();
         try {
             response = await fetch(`${API_BASE_URL}/api/process`, {
-                method: 'POST',
+            method: 'POST',
                 body: formData,
                 signal: controller.signal
-            });
+        });
             clearTimeout(timeoutId);
             const elapsed = Date.now() - startTime;
             console.log(`📥 收到响应 (耗时${elapsed}ms):`, {
-                status: response.status,
-                statusText: response.statusText,
-                ok: response.ok
-            });
+            status: response.status,
+            statusText: response.statusText,
+            ok: response.ok
+        });
         } catch (fetchError) {
             clearTimeout(timeoutId);
             const elapsed = Date.now() - startTime;
@@ -792,14 +1350,35 @@ async function processVideo() {
         // 开始轮询状态
         pollTaskStatus(taskId);
         
+        // 更新重置按钮显示状态
+        updateResetButtonVisibility();
+        
     } catch (error) {
         const errorMsg = error.message || '处理失败';
         updateStatus(`提交失败: ${errorMsg}`, 'error');
         console.error('Process error:', error);
         processBtn.disabled = false;
+        clearButtonLoading(processBtn);
         processBtn.textContent = '开始处理';
+    } finally {
+        // 等待轮询接管后由 stopPolling 释放；提交失败则立即释放
+        if (!isPolling) {
+            releaseWakeLock('processing');
+        }
     }
 }
+
+// 停止轮询
+function stopPolling() {
+    if (currentPollInterval) {
+        clearInterval(currentPollInterval);
+        currentPollInterval = null;
+    }
+    isPolling = false;
+    console.log('🛑 轮询已停止');
+    releaseWakeLock('processing');
+}
+
 
 // 轮询任务状态
 async function pollTaskStatus(taskId) {
@@ -809,9 +1388,13 @@ async function pollTaskStatus(taskId) {
     let lastStatusTime = Date.now(); // 记录上次状态更新时间
     const processingStartTime = Date.now(); // 记录处理开始时间
     
+    // 停止之前的轮询（如果有）
+    stopPolling();
+    
     // 标记轮询开始
     isPolling = true;
     
+    // 保存到全局变量，以便重置时可以停止
     const poll = async () => {
         attempts++;
         
@@ -831,6 +1414,9 @@ async function pollTaskStatus(taskId) {
                     console.error('任务ID:', taskId);
                     updateStatus(`任务不存在: ${errorDetail}`, 'error');
                     clearInterval(pollInterval);
+                    currentPollInterval = null;
+                    currentPollInterval = null;
+                    isPolling = false;
                     processBtn.disabled = false;
                     processBtn.textContent = '开始处理';
                     return;
@@ -860,17 +1446,22 @@ async function pollTaskStatus(taskId) {
             if (result.status === 'success') {
                 // 处理成功
                 clearInterval(pollInterval);
+                currentPollInterval = null;
                 isPolling = false; // 标记轮询结束
+                updateResetButtonVisibility();
                 const elapsed = Math.round((Date.now() - processingStartTime) / 1000); // 计算耗时（秒）
                 console.log(`✅ 任务处理成功 (耗时${elapsed}秒)`);
                 updateStatus(result.message || '处理完成！', 'success');
                 downloadSection.style.display = 'block';
+                updateResetButtonVisibility();
                 processBtn.disabled = false;
                 processBtn.textContent = '开始处理';
             } else if (result.status === 'failed') {
                 // 处理失败
                 clearInterval(pollInterval);
+                currentPollInterval = null;
                 isPolling = false; // 标记轮询结束
+                updateResetButtonVisibility();
                 const errorMsg = result.error || result.message || '处理失败';
                 // 显示详细错误信息（如果可用）
                 let displayMsg = `处理失败: ${errorMsg}`;
@@ -898,7 +1489,9 @@ async function pollTaskStatus(taskId) {
                 // 如果所有版本都已完成，停止轮询并更新状态
                 if (allDone) {
                     clearInterval(pollInterval);
+                    currentPollInterval = null;
                     isPolling = false; // 标记轮询结束
+                    updateResetButtonVisibility();
                     const elapsedSeconds = attempts * 5;
                     const elapsedMinutes = Math.floor(elapsedSeconds / 60);
                     const remainingSeconds = elapsedSeconds % 60;
@@ -926,6 +1519,7 @@ async function pollTaskStatus(taskId) {
                     
                     downloadSection.style.display = 'block';
                     updateDownloadButton(result);
+                    updateResetButtonVisibility();
                     processBtn.disabled = false;
                     processBtn.textContent = '开始处理';
                     return; // 停止轮询
@@ -959,11 +1553,13 @@ async function pollTaskStatus(taskId) {
                 if (result.modular_output || result.v2_output) {
                     downloadSection.style.display = 'block';
                     updateDownloadButton(result);
+                    updateResetButtonVisibility();
+                    updateResetButtonVisibility();
                 }
                 
-                // 仍在处理中，保持按钮状态
-                processBtn.disabled = true;
-                processBtn.textContent = '处理中...';
+                    // 仍在处理中，保持按钮状态
+                    processBtn.disabled = true;
+                    processBtn.textContent = '处理中...';
             }
         } catch (error) {
             console.error('Poll error:', error);
@@ -973,7 +1569,9 @@ async function pollTaskStatus(taskId) {
         // 超时检查
         if (attempts >= maxAttempts) {
             clearInterval(pollInterval);
+            currentPollInterval = null;
             isPolling = false; // 标记轮询结束
+            updateResetButtonVisibility();
             updateStatus('处理超时：处理时间超过20分钟。Render免费层资源有限，建议使用较小的测试视频或稍后重试。', 'error');
             processBtn.disabled = false;
             processBtn.textContent = '开始处理';
@@ -985,12 +1583,14 @@ async function pollTaskStatus(taskId) {
     
     // 每5秒轮询一次
     pollInterval = setInterval(poll, 5000);
+    currentPollInterval = pollInterval; // 保存到全局变量
 }
 
 // 更新状态显示
 function updateStatus(message, type = '') {
     statusText.textContent = `处理状态: ${message}`;
     statusText.className = 'status-text';
+    if (statusSkeleton) statusSkeleton.style.display = 'none';
     // 根据类型设置样式
     if (type === 'success') {
         statusText.style.color = '#4CAF50';
@@ -1024,6 +1624,7 @@ function updateStatusWithMultiple(messages, types = []) {
     const combinedMessage = messages.join('\n');
     statusText.textContent = `处理状态:\n${combinedMessage}`;
     statusText.className = 'status-text';
+    if (statusSkeleton) statusSkeleton.style.display = 'none';
     
     // 设置样式（如果有多个类型，使用第一个类型）
     const primaryType = types[0] || '';
@@ -1068,7 +1669,7 @@ function updateDownloadButton(result) {
                         console.log('下载modular版本:', latestResult.modular_output);
                         const modularUrl = `${API_BASE_URL}/api/download/${latestResult.task_id}?version=modular`;
                         const modularFilename = `modular_${latestResult.task_id}.mp4`;
-                        await downloadFile(modularUrl, modularFilename, 'modular');
+                        await downloadFile(modularUrl, modularFilename, 'modular', downloadModularBtn);
                     } else {
                         console.warn('Modular版本状态已变更，无法下载');
                         updateStatus('Modular版本不可用', 'error');
@@ -1078,7 +1679,7 @@ function updateDownloadButton(result) {
                     if (result.modular_output) {
                         const modularUrl = `${API_BASE_URL}/api/download/${result.task_id}?version=modular`;
                         const modularFilename = `modular_${result.task_id}.mp4`;
-                        await downloadFile(modularUrl, modularFilename, 'modular');
+                        await downloadFile(modularUrl, modularFilename, 'modular', downloadModularBtn);
                     }
                 }
             } catch (error) {
@@ -1086,7 +1687,7 @@ function updateDownloadButton(result) {
                 // 降级方案：使用当前result的值
                 if (result.modular_output) {
                     const modularUrl = `${API_BASE_URL}/api/download/${result.task_id}?version=modular`;
-                    await downloadFile(modularUrl, 'beatsync_modular.mp4', 'modular');
+                    await downloadFile(modularUrl, 'beatsync_modular.mp4', 'modular', downloadModularBtn);
                 }
             }
         };
@@ -1119,7 +1720,7 @@ function updateDownloadButton(result) {
                         console.log('下载V2版本:', latestResult.v2_output);
                         const v2Url = `${API_BASE_URL}/api/download/${latestResult.task_id}?version=v2`;
                         const v2Filename = `v2_${latestResult.task_id}.mp4`;
-                        await downloadFile(v2Url, v2Filename, 'v2');
+                                await downloadFile(v2Url, v2Filename, 'v2', downloadV2Btn);
                     } else {
                         console.warn('V2版本状态已变更，无法下载');
                         updateStatus('V2版本不可用', 'error');
@@ -1129,7 +1730,7 @@ function updateDownloadButton(result) {
                     if (result.v2_output) {
                         const v2Url = `${API_BASE_URL}/api/download/${result.task_id}?version=v2`;
                         const v2Filename = `v2_${result.task_id}.mp4`;
-                        await downloadFile(v2Url, v2Filename, 'v2');
+                                await downloadFile(v2Url, v2Filename, 'v2', downloadV2Btn);
                     }
                 }
             } catch (error) {
@@ -1137,7 +1738,7 @@ function updateDownloadButton(result) {
                 // 降级方案：使用当前result的值
                 if (result.v2_output) {
                     const v2Url = `${API_BASE_URL}/api/download/${result.task_id}?version=v2`;
-                    await downloadFile(v2Url, 'beatsync_v2.mp4', 'v2');
+                            await downloadFile(v2Url, 'beatsync_v2.mp4', 'v2', downloadV2Btn);
                 }
             }
         };
@@ -1152,16 +1753,30 @@ function updateDownloadButton(result) {
         downloadV2Btn.querySelector('.btn-text').textContent = 'V2版本处理中...';
         downloadV2Btn.onclick = null;
     }
+    
+    // 更新重置按钮显示状态
+    updateResetButtonVisibility();
 }
 
 // 下载单个文件（优化：立即响应，不等待）
-async function downloadFile(url, filename, version = null) {
+async function downloadFile(url, filename, version = null, button = null) {
+    requestWakeLock('download');
     try {
         // 设置下载标志（防止轮询覆盖状态）
         isDownloading = true;
         downloadingVersion = version;
+        setButtonLoading(button, '下载中...');
+        if (statusSkeleton) statusSkeleton.style.display = 'flex';
+        showProgress(0, '准备下载...');
         
-        // 检测是否为移动设备和PWA环境
+        // 检测是否为 Capacitor 原生 App 环境
+        console.log('🔍 下载函数开始执行');
+        const isNative = typeof window.Capacitor !== 'undefined' && window.Capacitor.isNativePlatform;
+        if (isCapacitorNative || isNative) {
+            return await downloadFileNativeApp(url, filename, version);
+        }
+        
+        // 检测是否为移动设备和PWA环境（网页端/PWA端逻辑）
         const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
         const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
         const isPWA = window.matchMedia('(display-mode: standalone)').matches || 
@@ -1181,6 +1796,7 @@ async function downloadFile(url, filename, version = null) {
         if (!isPolling) {
             updateStatus(downloadingStatusMessage, 'processing');
         }
+        showProgress(0, '准备下载...');
         
         // iOS PWA环境：直接打开新窗口到下载URL（让用户手动下载）
         if (isIOS && isPWA) {
@@ -1215,7 +1831,7 @@ async function downloadFile(url, filename, version = null) {
                 return result;
             }
             
-            return true;
+                    return true;
         }
         
         // PWA环境：使用blob方式（确保在PWA中能正确下载）
@@ -1260,6 +1876,7 @@ async function downloadFile(url, filename, version = null) {
                 updateStatus('下载已开始', 'success');
             }
         }
+        showProgress(100, '下载已开始');
         return true;
     } catch (error) {
         console.error(`下载 ${filename} 失败:`, error);
@@ -1270,6 +1887,256 @@ async function downloadFile(url, filename, version = null) {
         isDownloading = false;
         downloadingVersion = null;
         downloadingStatusMessage = null;
+        clearButtonLoading(button);
+        releaseWakeLock('download');
+        updateResetButtonVisibility();
+        setTimeout(() => hideProgress(), 600);
+    }
+}
+
+// Capacitor 原生 App 下载并保存到相册
+async function downloadFileNativeApp(url, filename, version = null) {
+    try {
+        const { Filesystem } = window.Capacitor.Plugins;
+        const { Share } = window.Capacitor.Plugins;
+        
+        if (!Filesystem) {
+            throw new Error('Capacitor Filesystem 插件未加载，请确保已安装 @capacitor/filesystem');
+        }
+        
+        // Directory 枚举值（使用字符串常量）
+        const DirectoryEnum = {
+            Documents: 'DOCUMENTS',
+            Cache: 'CACHE',
+            Data: 'DATA',
+            External: 'EXTERNAL',
+            ExternalStorage: 'EXTERNAL_STORAGE'
+        };
+        
+        // 根据版本显示状态
+        if (version) {
+            const versionName = version === 'modular' ? 'Modular版本' : 'V2版本';
+            downloadingStatusMessage = `正在下载${versionName}结果...`;
+                } else {
+            downloadingStatusMessage = '正在下载...';
+        }
+        if (!isPolling) {
+            updateStatus(downloadingStatusMessage, 'processing');
+        }
+        showProgress(0, '准备下载...');
+        
+        // 1. 下载视频文件
+        console.log('📥 开始下载视频:', url);
+        const response = await fetch(url);
+        if (!response.ok) {
+            throw new Error(`下载失败: ${response.statusText}`);
+        }
+        
+        // 获取文件大小用于显示进度
+        const contentLength = response.headers.get('Content-Length');
+        const total = contentLength ? parseInt(contentLength, 10) : 0;
+        
+        // 使用 ReadableStream 读取数据
+        const reader = response.body.getReader();
+        downloadReader = reader; // 保存reader引用，用于检测中断
+        const chunks = [];
+        let received = 0;
+        
+        // 保存下载上下文，用于恢复
+        currentDownloadContext = {
+            url: url,
+            filename: filename,
+            version: version,
+            total: total,
+            received: 0,
+            retryCount: 0
+        };
+        
+        while (true) {
+            let readResult;
+            try {
+                readResult = await reader.read();
+            } catch (readError) {
+                // 如果读取失败（可能是app切到后台导致ReadableStream断开）
+                console.error('❌ ReadableStream读取失败:', readError);
+                // 检查是否是网络错误或流断开
+                if (readError.name === 'NetworkError' || readError.message?.includes('network') || 
+                    readError.message?.includes('aborted') || readError.message?.includes('canceled')) {
+                    // 尝试重新开始下载
+                    console.log('🔄 检测到下载中断，尝试重新开始下载...');
+                    reader.cancel().catch(() => {});
+                    downloadReader = null;
+                    // 重新开始下载（递归调用，但限制重试次数）
+                    if (!currentDownloadContext.retryCount) {
+                        currentDownloadContext.retryCount = 0;
+                    }
+                    if (currentDownloadContext.retryCount < 2) {
+                        currentDownloadContext.retryCount++;
+                        updateStatus('下载中断，正在重新开始...', 'info');
+                        // 等待1秒后重新开始
+                        await new Promise(resolve => setTimeout(resolve, 1000));
+                        return await downloadFileNativeApp(url, filename, version);
+                    } else {
+                        throw new Error('下载中断，已重试多次仍失败，请重新下载');
+                    }
+                }
+                throw readError;
+            }
+            
+            const { done, value } = readResult;
+            if (done) break;
+            
+            // 检查是否已重置（下载被取消）
+            if (!isDownloading) {
+                console.log('ℹ️ 下载已被重置，停止下载');
+                reader.cancel();
+                throw new Error('下载已取消');
+            }
+            
+            chunks.push(value);
+            received += value.length;
+            
+            // 更新已接收的字节数到上下文
+            if (currentDownloadContext) {
+                currentDownloadContext.received = received;
+            }
+            
+            // 更新进度（更频繁地更新，每5%更新一次）
+            if (total > 0) {
+                const percent = Math.round((received / total) * 100);
+                // 每5%更新一次，或者达到100%时更新
+                if (percent % 5 === 0 || percent >= 100) {
+                    // 再次检查是否已重置
+                    if (!isDownloading) {
+                        console.log('ℹ️ 下载已被重置，停止更新进度');
+                        reader.cancel();
+                        throw new Error('下载已取消');
+                    }
+                    showProgress(percent, `${percent}%`);
+                    if (version) {
+                        const versionName = version === 'modular' ? 'Modular版本' : 'V2版本';
+                        downloadingStatusMessage = `正在下载${versionName}结果... ${percent}%`;
+                    } else {
+                        downloadingStatusMessage = `正在下载... ${percent}%`;
+                    }
+                    // 立即更新状态显示（只有在未重置时）
+                    if (!isPolling && isDownloading && downloadingStatusMessage) {
+                        updateStatus(downloadingStatusMessage, 'processing');
+                    }
+                }
+            }
+        }
+        
+        // 合并所有 chunks
+        const blob = new Blob(chunks, { type: 'video/mp4' });
+        console.log('✅ 视频下载完成，大小:', formatFileSize(blob.size));
+        
+        // 清除下载上下文和reader引用（下载成功）
+        currentDownloadContext = null;
+        downloadReader = null;
+        
+        // 2. 保存到文件系统（Documents 目录，用户可访问）
+        const tempFileName = `beatsync_${Date.now()}_${filename}`;
+        const filePath = `beatsync/${tempFileName}`;
+        
+        // 将 blob 转换为 base64（使用安全的方法，避免调用栈溢出）
+        const arrayBuffer = await blob.arrayBuffer();
+        const uint8Array = new Uint8Array(arrayBuffer);
+        // 分块处理，避免调用栈溢出
+        const chunkSize = 8192; // 8KB chunks
+        let base64Data = '';
+        for (let i = 0; i < uint8Array.length; i += chunkSize) {
+            const chunk = uint8Array.slice(i, i + chunkSize);
+            base64Data += String.fromCharCode.apply(null, chunk);
+        }
+        base64Data = btoa(base64Data);
+        
+        console.log('💾 保存到文件系统:', filePath);
+        await Filesystem.writeFile({
+            path: filePath,
+            data: base64Data,
+            directory: DirectoryEnum.Documents,
+            recursive: true
+        });
+        
+        // 3. 获取文件 URI（用于备用方案）
+        const fileUri = await Filesystem.getUri({
+            path: filePath,
+            directory: DirectoryEnum.Documents
+        });
+        
+        console.log('📁 文件 URI:', fileUri.uri);
+        
+        // 4. 使用分享方案（Share / Web Share）
+        try {
+            const Capacitor = window.Capacitor;
+            if (Capacitor && Capacitor.Plugins && Capacitor.Plugins.Share) {
+                console.log('📤 使用 Capacitor Share 插件（打开分享菜单）');
+                const shareResult = await Capacitor.Plugins.Share.share({
+                    title: filename,
+                    url: fileUri.uri,
+                    dialogTitle: '请选择"保存到相册"'
+                });
+                console.log('✅ Share 插件调用成功:', shareResult);
+                const versionName = version === 'modular' ? 'Modular版本' : 'V2版本';
+                updateStatus(version ? `${versionName}请从分享菜单选择"保存到相册"` : '请从分享菜单选择"保存到相册"', 'info');
+                showProgress(100, '下载完成');
+                return true;
+            }
+        } catch (shareError) {
+            console.warn('⚠️ Share 插件调用失败:', shareError);
+        }
+
+        // 备用：Web Share API（同样是分享菜单）
+        const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+        if (isIOS && navigator.share && navigator.canShare) {
+            const file = new File([blob], filename, { type: 'video/mp4' });
+            if (navigator.canShare({ files: [file] })) {
+                console.log('📤 使用 Web Share API（打开分享菜单）');
+                await navigator.share({ files: [file], title: filename });
+                const versionName = version === 'modular' ? 'Modular版本' : 'V2版本';
+                updateStatus(version ? `${versionName}请从分享菜单选择"保存到相册"` : '请从分享菜单选择"保存到相册"', 'info');
+                showProgress(100, '下载完成');
+                return true;
+            }
+        }
+
+        // 最终兜底：提示已保存到文件
+        const versionName = version === 'modular' ? 'Modular版本' : 'V2版本';
+        updateStatus(version ? `${versionName}已保存到文件，可在文件应用中查看` : '视频已保存到文件，可在文件应用中查看', 'success');
+        showProgress(100, '下载完成');
+        return true;
+        
+    } catch (error) {
+        // 清除下载上下文和reader引用
+        currentDownloadContext = null;
+        downloadReader = null;
+        
+        // 如果下载被重置（取消），不显示错误信息
+        if (error.message === '下载已取消' || !isDownloading) {
+            console.log('ℹ️ 下载已取消');
+            return;
+        }
+        console.error('❌ 原生 App 下载失败:', error);
+        // 只有在未重置时才更新错误状态
+        if (isDownloading) {
+            updateStatus(`下载失败: ${error.message}`, 'error');
+        }
+        throw error;
+    } finally {
+        // 只有在未重置时才执行清理
+        if (isDownloading) {
+            setTimeout(() => hideProgress(), 600);
+        } else {
+            hideProgress();
+        }
+        // 如果下载完成或失败，清除上下文
+        if (!isDownloading) {
+            currentDownloadContext = null;
+            downloadReader = null;
+        }
+        releaseWakeLock('download');
+        updateResetButtonVisibility();
     }
 }
 
@@ -1286,47 +2153,103 @@ async function downloadFileWithBlob(url, filename, version = null) {
         }
         // 如果pollTaskStatus正在运行，它会统一显示状态
         // 否则直接更新状态（处理已完成的情况）
-        if (!isPolling) {
+        // 只有在未重置时才更新状态
+        if (!isPolling && isDownloading && downloadingStatusMessage) {
             updateStatus(downloadingStatusMessage, 'processing');
         }
         
-        const response = await fetch(url);
-        if (!response.ok) {
-            throw new Error(`下载失败: ${response.statusText}`);
-        }
-        
+            const response = await fetch(url);
+            if (!response.ok) {
+                throw new Error(`下载失败: ${response.statusText}`);
+            }
+            
         // 获取文件大小（用于显示进度）
         const contentLength = response.headers.get('Content-Length');
         const total = contentLength ? parseInt(contentLength, 10) : 0;
         
         // 使用ReadableStream读取数据（支持大文件）
         const reader = response.body.getReader();
+        downloadReader = reader; // 保存reader引用
         const chunks = [];
         let received = 0;
         
+        // 保存下载上下文
+        currentDownloadContext = {
+            url: url,
+            filename: filename,
+            version: version,
+            total: total,
+            received: 0,
+            retryCount: 0
+        };
+        
         while (true) {
-            const { done, value } = await reader.read();
+            let readResult;
+            try {
+                readResult = await reader.read();
+            } catch (readError) {
+                // 如果读取失败（可能是app切到后台导致ReadableStream断开）
+                console.error('❌ ReadableStream读取失败:', readError);
+                if (readError.name === 'NetworkError' || readError.message?.includes('network') || 
+                    readError.message?.includes('aborted') || readError.message?.includes('canceled')) {
+                    console.log('🔄 检测到下载中断，尝试重新开始下载...');
+                    reader.cancel().catch(() => {});
+                    downloadReader = null;
+                    if (!currentDownloadContext.retryCount) {
+                        currentDownloadContext.retryCount = 0;
+                    }
+                    if (currentDownloadContext.retryCount < 2) {
+                        currentDownloadContext.retryCount++;
+                        updateStatus('下载中断，正在重新开始...', 'info');
+                        await new Promise(resolve => setTimeout(resolve, 1000));
+                        return await downloadFileWithBlob(url, filename, version);
+                    } else {
+                        throw new Error('下载中断，已重试多次仍失败，请重新下载');
+                    }
+                }
+                throw readError;
+            }
+            
+            const { done, value } = readResult;
             if (done) break;
+            
+            // 检查是否已重置（下载被取消）
+            if (!isDownloading) {
+                console.log('ℹ️ 下载已被重置，停止下载');
+                reader.cancel();
+                throw new Error('下载已取消');
+            }
             
             chunks.push(value);
             received += value.length;
             
-            // 更新进度（可选，对于大文件）
-            // 注意：只更新downloadingStatusMessage变量，不直接调用updateStatus
-            // 让pollTaskStatus中的逻辑来统一显示状态，避免状态冲突
+            // 更新已接收的字节数
+            if (currentDownloadContext) {
+                currentDownloadContext.received = received;
+            }
+            
+            // 更新进度（更频繁地更新，每5%更新一次）
             if (total > 0) {
                 const percent = Math.round((received / total) * 100);
-                if (percent % 10 === 0) { // 每10%更新一次
+                // 每5%更新一次，或者达到100%时更新
+                if (percent % 5 === 0 || percent >= 100) {
+                    // 再次检查是否已重置
+                    if (!isDownloading) {
+                        console.log('ℹ️ 下载已被重置，停止更新进度');
+                        reader.cancel();
+                        throw new Error('下载已取消');
+                    }
+                    showProgress(percent, `${percent}%`);
                     if (version) {
                         const versionName = version === 'modular' ? 'Modular版本' : 'V2版本';
                         downloadingStatusMessage = `正在下载${versionName}结果... ${percent}%`;
-                        // 不直接调用updateStatus，只更新变量，让pollTaskStatus统一显示
                     } else {
                         downloadingStatusMessage = `正在下载... ${percent}%`;
-                        // 不直接调用updateStatus，只更新变量，让pollTaskStatus统一显示
                     }
-                    // 触发一次状态更新（通过pollTaskStatus的逻辑）
-                    // 如果pollTaskStatus正在运行，它会在下次轮询时显示更新后的状态
+                    // 立即更新状态显示（只有在未重置时）
+                    if (!isPolling && isDownloading && downloadingStatusMessage) {
+                        updateStatus(downloadingStatusMessage, 'processing');
+                    }
                 }
             }
         }
@@ -1357,15 +2280,15 @@ async function downloadFileWithBlob(url, filename, version = null) {
         }
         
         // 使用blob URL下载
-        const downloadUrl = window.URL.createObjectURL(blob);
+            const downloadUrl = window.URL.createObjectURL(blob);
         
         // 创建下载链接
-        const a = document.createElement('a');
-        a.href = downloadUrl;
-        a.download = filename;
-        a.style.display = 'none';
-        document.body.appendChild(a);
-        a.click();
+            const a = document.createElement('a');
+            a.href = downloadUrl;
+            a.download = filename;
+            a.style.display = 'none';
+            document.body.appendChild(a);
+            a.click();
         
         // 延迟清理，确保下载开始
         setTimeout(() => {
@@ -1374,16 +2297,32 @@ async function downloadFileWithBlob(url, filename, version = null) {
         }, 100);
         
         console.log('下载完成:', filename);
+        
+        // 清除下载上下文和reader引用
+        currentDownloadContext = null;
+        downloadReader = null;
+        
         if (version) {
             const versionName = version === 'modular' ? 'Modular版本' : 'V2版本';
             updateStatus(`${versionName}下载已开始`, 'success');
         } else {
             updateStatus('下载已开始', 'success');
         }
+        showProgress(100, '下载完成');
         return true;
     } catch (error) {
+        // 清除下载上下文和reader引用
+        currentDownloadContext = null;
+        downloadReader = null;
+        
         console.error('Blob下载失败:', error);
         throw error;
+    } finally {
+        if (!isDownloading) {
+            currentDownloadContext = null;
+            downloadReader = null;
+        }
+        setTimeout(() => hideProgress(), 600);
     }
 }
 
