@@ -2,8 +2,8 @@
 
 > **文档目的**：为新接手的AI Agent提供完整的项目历史上下文，确保能够流畅地继续处理项目后续工作。
 
-**最后更新**：2025-11-27  
-**项目状态**：✅ 核心功能已完成，Web服务已部署，本地开发环境优化中
+**最后更新**：2025-12-13  
+**项目状态**：✅ 核心功能已完成，Web服务已部署，iOS App开发进行中（体验优化阶段）
 
 ---
 
@@ -38,7 +38,6 @@
 ```
 BeatSync/
 ├── README.md                          # 项目主文档
-├── render.yaml                        # Render部署配置
 │
 ├── 核心程序（4个）
 │   ├── beatsync_parallel_processor.py    # ⭐ 并行处理器（推荐）
@@ -136,8 +135,8 @@ python3 beatsync_parallel_processor.py \
 - `{样本名称}_v2.mp4` - V2版本（快速对齐，适合特定场景）
 
 **处理模式**：
-- **默认模式**：串行处理（`parallel=False`），适合资源受限环境（如Render免费 tier）
-- **并行模式**：使用 `--parallel` 参数启用，适合高性能服务器
+- **默认模式**：串行处理（`parallel=False`），适合资源受限环境
+- **并行模式**：使用 `--parallel` 参数启用，适合高性能服务器（如腾讯云）
 
 **超时设置**：
 - 每个版本处理超时：1200秒（20分钟）
@@ -205,7 +204,7 @@ python3 beatsync_badcase_fix_trim_v2.py \
 ### 4.1 架构概述
 
 **前端**：纯HTML/CSS/JavaScript，部署在GitHub Pages  
-**后端**：FastAPI (Python)，部署在Render  
+**后端**：FastAPI (Python)，部署在腾讯云轻量应用服务器  
 **通信**：RESTful API，支持CORS跨域
 
 ### 4.2 后端API（FastAPI）
@@ -255,7 +254,8 @@ WEB_OUTPUTS_RETENTION_DAYS = 3  # Web输出保留3天
 **环境检测**：
 - 自动检测本地开发环境（`localhost` 或 `127.0.0.1`）
 - 本地环境：使用 `http://localhost:8000`
-- 生产环境：使用 `https://beatsync-backend-asha.onrender.com`
+- 生产环境（Web/PWA）：使用 `https://124.221.58.149`（腾讯云服务器，临时使用IP地址，域名备案中）
+- Capacitor原生App环境：强制使用 `http://124.221.58.149`（HTTP，无端口）
 
 **主要功能**：
 1. **文件上传**：
@@ -322,34 +322,36 @@ cd web_service/backend
 **配置**：自动从 `main` 分支部署  
 **文件位置**：`web_service/frontend/` 目录下的静态文件
 
-### 5.2 后端部署（Render）
+### 5.2 后端部署（腾讯云轻量应用服务器）
 
-**地址**：`https://beatsync-backend-asha.onrender.com`  
-**配置**：`render.yaml`  
+**地址**：
+- HTTP：`http://124.221.58.149`（Capacitor App使用）
+- HTTPS：`https://124.221.58.149`（Web/PWA使用，临时使用IP，域名备案中）
+- 本地开发：`http://localhost:8000`
+
+**配置**：Nginx反向代理 + systemd服务管理  
 **环境**：
-- Python 3.11.0
-- 免费 tier（资源受限）
-- 自动部署（GitHub推送触发）
+- Python 3.x
+- 腾讯云轻量应用服务器
+- 手动部署（通过SSH和部署脚本）
 
-**性能限制**：
-- 免费 tier 资源有限，并行处理反而更慢
-- 默认使用串行处理模式
-- 处理超时：1200秒（20分钟）
+**性能优势**：
+- 相比Render免费tier，性能大幅提升
+- 支持并行处理模式
+- 处理时间：2-4分钟（相比Render的10-20分钟）
 
-### 5.3 云平台分析
+**部署文档**：`docs/deployment/TENCENT_CLOUD_DEPLOYMENT_GUIDE.md`
 
-**文档**：`docs/deployment/CHINA_CLOUD_PLATFORMS_ANALYSIS.md`
+### 5.3 部署历史
 
-**推荐方案**：腾讯云轻量应用服务器（Lighthouse）
-- **配置**：2核4G
-- **价格**：约88元/年（活动价）
-- **优势**：性价比高，适合个人项目
-- **性能**：可支持并行处理，处理时间可降至2分钟以内
+**已迁移**：从Render迁移到腾讯云轻量应用服务器
+- **原因**：Render免费tier性能受限，处理时间过长（10-20分钟）
+- **迁移时间**：2025年（具体日期见部署文档）
+- **当前状态**：已成功迁移，性能大幅提升
 
-**其他选项**：
-- 阿里云轻量应用服务器
-- 华为云弹性云服务器
-- 百度智能云
+**部署文档**：
+- `docs/deployment/TENCENT_CLOUD_DEPLOYMENT_GUIDE.md` - 腾讯云部署指南
+- `docs/deployment/QUICK_DEPLOYMENT_STEPS.md` - 快速部署步骤
 
 ---
 
@@ -375,14 +377,14 @@ cd web_service/backend
 
 ### 6.2 串行 vs 并行处理
 
-**问题**：Render免费 tier上并行处理反而更慢（近20分钟）
+**历史问题**：Render免费 tier上并行处理反而更慢（近20分钟）
 
 **原因**：资源受限，并行处理导致CPU/内存竞争
 
-**解决方案**：
-- 默认使用串行处理（`parallel=False`）
-- 保留并行逻辑作为备选（`--parallel` 参数）
-- 等服务器升级后再启用并行模式
+**当前状态**：
+- 已迁移到腾讯云服务器，性能大幅提升
+- 可以启用并行处理模式（`--parallel` 参数）
+- 处理时间：2-4分钟（相比Render的10-20分钟）
 
 **文档**：`docs/development/SERIAL_PARALLEL_MODE.md`
 
@@ -543,7 +545,7 @@ pip install -r requirements.txt
 - [x] 核心处理程序（并行处理器、Modular版本、V2版本）
 - [x] Web服务前后端
 - [x] 前端部署（GitHub Pages）
-- [x] 后端部署（Render）
+- [x] 后端部署（已从Render迁移到腾讯云）
 - [x] 自动清理机制（上传文件、输出文件、任务状态）
 - [x] 性能优化（高分辨率视频、内存优化）
 - [x] 串行/并行模式切换
@@ -553,31 +555,50 @@ pip install -r requirements.txt
 
 ### 9.2 进行中的工作 🔄
 
-**本地开发环境调试**：
-- 前端上传请求卡住问题
-- 后端日志输出优化
-- 前端调试日志增强
-
-**状态**：已添加详细调试日志，等待用户测试反馈
+**iOS App体验优化**：
+- **下载功能**：已实现使用Capacitor Share插件打开原生分享菜单，用户可选择"保存到相册"
+  - 已移除自定义SaveToGallery插件（因注册问题无法正常工作）
+  - 当前方案：使用Share插件或Web Share API作为回退
+  - 状态：功能可用，但需要用户手动选择"保存到相册"
+  
+- **UI布局优化**：App端元素位置偏上，已多次调整CSS但用户反馈无变化
+  - 已添加safe-area-inset适配
+  - 已增加padding-top、gap等间距
+  - 已更新Service Worker版本和缓存策略
+  - 状态：用户反馈UI仍无变化，可能需进一步排查缓存或渲染问题
 
 ### 9.3 待办事项 📋
 
 **高优先级**：
-1. **解决本地开发环境上传问题**
-   - 诊断前端卡在"正在上传原始视频..."的原因
-   - 确保后端正确接收和处理上传请求
-   - 验证文件保存和响应返回
+1. **解决iOS App UI布局问题** ⚠️ 当前最紧急
+   - 问题：CSS修改后App端UI无任何变化
+   - 可能原因：
+     - Service Worker缓存未清除
+     - Capacitor WebView缓存
+     - CSS选择器优先级问题
+     - 需要重新构建App
+   - 建议排查步骤：
+     1. 检查Service Worker版本和缓存策略
+     2. 尝试在Xcode中清除构建缓存
+     3. 检查CSS是否被正确加载（浏览器开发者工具）
+     4. 验证CSS文件版本号是否更新
+     5. 考虑使用内联样式或更高优先级选择器
 
-2. **验证线上服务稳定性**
-   - 测试串行处理模式在Render上的表现
+2. **优化iOS App下载体验**（可选）
+   - 当前：使用Share插件，用户需手动选择"保存到相册"
+   - 理想：直接保存到相册（需要自定义插件或使用其他方案）
+   - 注意：之前尝试的自定义SaveToGallery插件因注册问题失败
+
+3. **验证线上服务稳定性**
+   - 测试腾讯云服务器的处理性能
    - 监控处理时间和成功率
    - 优化超时和错误处理
 
 **中优先级**：
-3. **考虑服务器升级**
-   - 评估腾讯云Lighthouse方案
-   - 迁移到高性能服务器
-   - 启用并行处理模式
+3. **域名备案完成后的配置更新**
+   - 域名备案通过后，将IP地址改为域名
+   - 更新前端API地址配置
+   - 配置HTTPS证书（Let's Encrypt）
 
 4. **用户体验优化**
    - 改进前端错误提示
@@ -601,10 +622,9 @@ pip install -r requirements.txt
 
 ### 10.1 核心配置文件
 
-**`render.yaml`**：
-- Render部署配置
-- Python版本：3.11.0
-- 启动命令：`uvicorn main:app --host 0.0.0.0 --port $PORT`
+**部署脚本**：
+- `scripts/deployment/deploy_to_tencent_cloud.sh` - 腾讯云部署脚本
+- `scripts/deployment/upload_to_tencent_cloud.sh` - 文件上传脚本
 
 **`.gitignore`**：
 - 忽略 `outputs/` 目录（除 `task_status.json`）
@@ -715,7 +735,7 @@ cd web_service/frontend
 ### Q3: 如何处理超时问题？
 
 - 本地：检查文件大小，大文件可能需要更长时间
-- 线上：Render免费tier资源有限，考虑升级服务器
+- 线上：腾讯云服务器性能较好，处理时间通常2-4分钟
 
 ### Q4: 如何切换串行/并行模式？
 
@@ -725,7 +745,7 @@ python3 beatsync_parallel_processor.py --parallel ...
 ```
 
 **Web服务**：
-- 默认串行（适合免费tier）
+- 腾讯云服务器可以启用并行模式
 - 需要修改 `beatsync_parallel_processor.py` 中的 `parallel` 参数
 
 ### Q5: 如何清理旧文件？
@@ -737,13 +757,160 @@ python3 beatsync_parallel_processor.py --parallel ...
 
 ---
 
-## 十三、联系和资源
+## 十三、iOS App开发（Capacitor）
+
+### 13.1 项目配置
+
+**Capacitor配置**：`capacitor.config.json`
+```json
+{
+  "appId": "com.beatsync.app",
+  "appName": "BeatSync",
+  "webDir": "web_service/frontend",
+  "server": {
+    "cleartext": true,
+    "allowNavigation": ["124.221.58.149"]
+  }
+}
+```
+
+**关键配置说明**：
+- `webDir`: 前端文件目录
+- `server.url`: 已移除，使用前端自动检测
+- `cleartext: true`: 允许HTTP连接（后端使用HTTP）
+- `allowNavigation`: 允许导航到后端IP地址
+
+### 13.2 iOS项目结构
+
+```
+ios/
+├── App/
+│   ├── App/
+│   │   ├── AppDelegate.swift          # 应用委托
+│   │   ├── Info.plist                 # 应用配置（ATS、权限等）
+│   │   └── Assets.xcassets/          # 图标和启动画面
+│   └── CapApp-SPM/
+│       └── Package.swift              # Swift Package Manager配置
+├── Plugins/                           # 自定义插件目录
+│   └── SaveToGallery/                 # SaveToGallery插件（已弃用，文件仍存在但未使用）
+└── vendor/
+    └── capacitor-swift-pm/            # 本地Capacitor SPM依赖
+```
+
+### 13.3 已安装的Capacitor插件
+
+- `@capacitor/camera` - 相机功能（未使用）
+- `@capacitor/filesystem` - 文件系统操作
+- `@capacitor/share` - 原生分享功能（当前下载方案）
+
+### 13.4 iOS配置（Info.plist）
+
+**App Transport Security (ATS)**：
+- 允许HTTP连接到 `124.221.58.149`
+- 允许任意加载（用于开发调试）
+
+**权限说明**：
+- `NSPhotoLibraryAddUsageDescription`: 保存视频到相册
+- `NSPhotoLibraryUsageDescription`: 访问相册
+
+### 13.5 下载功能实现
+
+**当前方案**：使用Capacitor Share插件
+- 下载视频到Documents目录
+- 使用Share插件打开原生分享菜单
+- 用户手动选择"保存到相册"
+
+**代码位置**：`web_service/frontend/script.js`
+- `downloadFileNativeApp()`: 原生App下载逻辑
+- `isCapacitorNative`: 全局变量，检测是否为原生环境
+
+**环境隔离**：
+- App端：使用 `downloadFileNativeApp()`
+- Web/PWA端：使用标准下载逻辑
+- 通过 `isCapacitorNative` 变量区分
+
+### 13.6 已知问题和解决方案
+
+**问题1：自定义SaveToGallery插件无法注册**
+- **原因**：Capacitor 8的插件注册机制变化，自动发现失败
+- **尝试方案**：
+  1. 手动注册（`Bridge.registerPlugin`）- 失败，Bridge不在作用域
+  2. 通过SPM集成 - 失败，出现duplicate symbols错误
+- **当前状态**：已弃用自定义插件，使用Share插件作为回退
+- **注意**：SaveToGallery插件文件仍存在于`ios/App/SaveToGalleryPlugin.swift`和`ios/Plugins/SaveToGallery/`，但未在代码中使用
+
+**问题2：UI布局修改后App端无变化**
+- **可能原因**：
+  1. Service Worker缓存
+  2. Capacitor WebView缓存
+  3. CSS未正确加载
+  4. 需要重新构建App
+- **已尝试方案**：
+  1. 更新CSS/JS版本号（`?v=20251213`，但SW缓存中仍是`?v=20251212`）
+  2. 更新Service Worker版本（`beatsync-v1.0.1`）
+  3. 调整CSS选择器和优先级
+- **待排查**：
+  1. 在Xcode中清除构建缓存
+  2. 检查WebView开发者工具
+  3. 验证CSS文件是否被正确加载
+
+**问题3：SSL错误（已解决）**
+- **问题**：App连接HTTPS后端失败
+- **解决**：改为HTTP，添加ATS例外
+
+**问题4：后端连接问题（已解决）**
+- **问题**：App自动打开Safari访问域名
+- **解决**：添加 `allowNavigation` 配置
+
+### 13.7 开发流程
+
+**同步前端代码到iOS**：
+```bash
+npx cap sync ios
+```
+
+**打开Xcode项目**：
+```bash
+npx cap open ios
+```
+
+**构建和运行**：
+1. 在Xcode中选择目标设备（真机或模拟器）
+2. 点击运行按钮（⌘R）
+3. 首次运行需要配置签名（Team、Bundle ID）
+
+**调试技巧**：
+1. 使用Safari Web Inspector（真机调试）
+2. 查看Xcode控制台日志
+3. 检查Capacitor插件调用日志
+
+### 13.8 重要文件说明
+
+**前端环境检测**：`web_service/frontend/script.js`
+- 第1-2行：`isCapacitorNative` 全局变量
+- 第9-14行：Capacitor环境强制使用 `http://124.221.58.149`
+- `downloadFileNativeApp()`: 原生下载逻辑（第1286行开始，约150行）
+
+**iOS配置**：`ios/App/App/Info.plist`
+- ATS配置（第54-76行）
+- 相册权限说明（第50-53行）
+
+**Service Worker**：`web_service/frontend/sw.js`
+- 版本号：`beatsync-v1.0.1`
+- 缓存策略：已更新，强制缓存带版本号的CSS/JS
+- **注意**：SW中缓存的版本号是`?v=20251212`，但index.html使用的是`?v=20251213`，可能需要同步更新SW缓存列表
+
+---
+
+## 十四、联系和资源
 
 ### 13.1 项目仓库
 
 - **GitHub**: `https://github.com/ScarlettYellow/BeatSync`
 - **前端地址**: `https://scarlettyellow.github.io/BeatSync/`
-- **后端地址**: `https://beatsync-backend-asha.onrender.com`
+- **后端地址**: 
+  - HTTP（App）: `http://124.221.58.149`
+  - HTTPS（Web）: `https://124.221.58.149`（临时使用IP，域名备案中）
 
 ### 13.2 重要文档索引
 
@@ -763,17 +930,19 @@ python3 beatsync_parallel_processor.py --parallel ...
 
 ---
 
-## 十四、交接检查清单
+## 十五、交接检查清单
 
 新接手的Agent应该：
 
 - [ ] 阅读本交接文档
 - [ ] 了解项目结构和核心功能
 - [ ] 熟悉Web服务架构
+- [ ] 了解iOS App开发状态（Capacitor）
 - [ ] 设置本地开发环境
 - [ ] 测试核心处理程序
 - [ ] 测试Web服务（本地）
-- [ ] 查看当前待办事项
+- [ ] 测试iOS App（如需要）
+- [ ] 查看当前待办事项（特别是UI布局问题）
 - [ ] 了解已知问题和解决方案
 - [ ] 熟悉调试技巧和日志查看
 
@@ -781,6 +950,14 @@ python3 beatsync_parallel_processor.py --parallel ...
 
 **文档维护**：每次重要变更后，请更新本文档的相关章节。
 
-**最后更新**：2025-11-27  
-**更新内容**：添加本地开发环境调试、前端上传问题、后端日志优化等最新进展
+**最后更新**：2025-12-13  
+**更新内容**：
+- 添加iOS App开发章节（Capacitor配置、下载功能、UI布局问题）
+- 更新当前待办事项（iOS UI布局问题为最高优先级）
+- 添加iOS开发流程和调试技巧
+- 更正后端部署信息（从Render改为腾讯云服务器）
+
+
+
+
 

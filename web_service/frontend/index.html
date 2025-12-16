@@ -17,7 +17,11 @@
     <link rel="icon" type="image/x-icon" href="favicon.ico">
     <link rel="apple-touch-icon" href="favicon.svg">
     <link rel="manifest" href="manifest.json">
-    <link rel="stylesheet" href="style.css?v=20251202">
+    <link rel="stylesheet" href="style.css?v=20251242">
+    <!-- 内联样式：仅针对iOS App的UI布局修复（使用!important确保优先级） -->
+    <style id="app-specific-styles">
+        /* 此样式仅会在App端通过JavaScript应用 */
+    </style>
 </head>
 <body>
     <div class="container">
@@ -57,14 +61,23 @@
         
         <!-- 处理按钮 -->
         <div class="action-section">
-            <button class="process-btn" id="process-btn" disabled>
-                开始处理
-            </button>
+            <div class="action-buttons">
+                <button class="process-btn" id="process-btn" disabled>
+                    开始处理
+                </button>
+                <button class="reset-btn" id="reset-btn" title="重置任务" aria-label="重置任务" style="display: none;">
+                    重置
+                </button>
+            </div>
         </div>
         
         <!-- 状态显示 -->
         <div class="status-section">
             <p class="status-text" id="status-text"></p>
+            <div class="status-skeleton" id="status-skeleton" style="display: none;">
+                <div class="skeleton-line short"></div>
+                <div class="skeleton-line long"></div>
+            </div>
             <!-- 上传进度条 -->
             <div class="upload-progress-container" id="upload-progress-container" style="display: none;">
                 <div class="upload-progress-bar">
@@ -108,37 +121,86 @@
                 </div>
             </div>
         </div>
+        
+        <!-- 底部版权信息 -->
+        <footer class="footer">
+            <p class="footer-text">
+                ©2025 BeatSync All Right Reserved. 
+                <a href="https://scarlett6900.feishu.cn/share/base/form/shrcnmX4M67ksh8bPQkrv5L4HAg" target="_blank" rel="noopener noreferrer" class="footer-link">反馈建议</a>
+            </p>
+        </footer>
     </div>
     
     <!-- Service Worker注册 -->
     <script>
-        // 注册Service Worker
+        // 注册Service Worker（强制清除缓存版本）
         if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/sw.js')
-                    .then((registration) => {
-                        console.log('[PWA] Service Worker注册成功:', registration.scope);
-                        
-                        // 检查更新
-                        registration.addEventListener('updatefound', () => {
-                            const newWorker = registration.installing;
-                            newWorker.addEventListener('statechange', () => {
-                                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                                    // 新版本已安装，提示用户刷新
-                                    console.log('[PWA] 新版本已安装，请刷新页面');
-                                }
-                            });
+            window.addEventListener('load', async () => {
+                try {
+                    // 先尝试注销所有现有的Service Worker（强制清除缓存）
+                    const registrations = await navigator.serviceWorker.getRegistrations();
+                    for (let registration of registrations) {
+                        console.log('[PWA] 注销旧Service Worker:', registration.scope);
+                        await registration.unregister();
+                    }
+                    
+                    // 清除所有缓存
+                    if ('caches' in window) {
+                        const cacheNames = await caches.keys();
+                        await Promise.all(
+                            cacheNames.map(cacheName => {
+                                console.log('[PWA] 清除缓存:', cacheName);
+                                return caches.delete(cacheName);
+                            })
+                        );
+                    }
+                    
+                    // 注册新的Service Worker（带版本号，强制更新）
+                    const registration = await navigator.serviceWorker.register('/sw.js?v=20251242');
+                    console.log('[PWA] Service Worker注册成功:', registration.scope);
+                    
+                    // 立即激活新的Service Worker
+                    if (registration.waiting) {
+                        registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+                    }
+                    if (registration.installing) {
+                        registration.installing.addEventListener('statechange', (e) => {
+                            if (e.target.state === 'activated') {
+                                console.log('[PWA] Service Worker已激活，清除旧缓存');
+                                // 清除所有旧缓存
+                                caches.keys().then(cacheNames => {
+                                    cacheNames.forEach(cacheName => {
+                                        if (cacheName !== 'beatsync-v1.3.13') {
+                                            caches.delete(cacheName);
+                                        }
+                                    });
+                                });
+                                // 强制刷新页面以加载新资源
+                                window.location.reload();
+                            }
                         });
-                    })
-                    .catch((error) => {
-                        console.warn('[PWA] Service Worker注册失败:', error);
+                    }
+                    
+                    // 检查更新
+                    registration.addEventListener('updatefound', () => {
+                        const newWorker = registration.installing;
+                        newWorker.addEventListener('statechange', () => {
+                            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                console.log('[PWA] 新版本已安装，强制刷新页面');
+                                // 强制刷新以加载新版本
+                                window.location.reload();
+                            }
+                        });
                     });
+                } catch (error) {
+                    console.warn('[PWA] Service Worker注册失败:', error);
+                }
             });
         }
     </script>
     
     <!-- 添加版本号参数，每次更新时更改版本号，强制浏览器重新加载 -->
-    <script src="script.js?v=20251202"></script>
+             <script src="script.js?v=20251237"></script>
 </body>
 </html>
 

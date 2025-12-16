@@ -1,11 +1,11 @@
 // BeatSync Service Worker
-// 版本：v1.0.0
-const CACHE_NAME = 'beatsync-v1.0.0';
+// 版本：v1.3.13（App端禁用双击放大+图标调整）
+const CACHE_NAME = 'beatsync-v1.3.13';
 const STATIC_CACHE_URLS = [
   '/',
   '/index.html',
-  '/style.css',
-  '/script.js',
+  '/style.css?v=20251242',
+  '/script.js?v=20251242',
   '/favicon.svg',
   '/favicon.ico'
 ];
@@ -29,18 +29,32 @@ self.addEventListener('install', (event) => {
 
 // 激活Service Worker
 self.addEventListener('activate', (event) => {
-  console.log('[Service Worker] 激活中...');
+  console.log('[Service Worker] 激活中，清除所有旧缓存...');
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames.map((cacheName) => {
-          // 删除旧版本的缓存
+          // 删除所有旧版本的缓存（包括CSS/JS缓存）
           if (cacheName !== CACHE_NAME) {
             console.log('[Service Worker] 删除旧缓存:', cacheName);
             return caches.delete(cacheName);
           }
         })
-      );
+      ).then(() => {
+        // 清除所有CSS/JS相关的缓存项
+        return caches.open(CACHE_NAME).then((cache) => {
+          return cache.keys().then((keys) => {
+            keys.forEach((request) => {
+              const url = new URL(request.url);
+              // 删除所有CSS和JS文件的缓存
+              if (url.pathname.endsWith('.css') || url.pathname.endsWith('.js')) {
+                console.log('[Service Worker] 清除CSS/JS缓存:', url.pathname);
+                cache.delete(request);
+              }
+            });
+          });
+        });
+      });
     })
   );
   // 立即控制所有客户端
@@ -79,7 +93,30 @@ self.addEventListener('fetch', (event) => {
     return;
   }
   
-  // 静态资源：缓存优先，网络回退
+  // CSS和JS文件：网络优先（确保总是加载最新版本，解决缓存问题）
+  if (url.pathname.endsWith('.css') || url.pathname.endsWith('.js')) {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          // 网络请求成功，直接返回（不缓存CSS/JS，避免缓存问题）
+          console.log('[Service Worker] 网络优先加载:', url.pathname);
+          return response;
+        })
+        .catch((error) => {
+          // 网络请求失败，尝试从缓存获取（作为回退）
+          console.warn('[Service Worker] 网络请求失败，尝试缓存:', url.pathname, error);
+          return caches.match(request).then((cachedResponse) => {
+            if (cachedResponse) {
+              return cachedResponse;
+            }
+            throw error;
+          });
+        })
+    );
+    return;
+  }
+  
+  // 其他静态资源：缓存优先，网络回退
   event.respondWith(
     caches.match(request)
       .then((cachedResponse) => {

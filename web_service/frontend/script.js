@@ -2016,7 +2016,7 @@ async function downloadFileNativeApp(url, filename, version = null) {
                     if (version) {
                         const versionName = version === 'modular' ? 'Modular版本' : 'V2版本';
                         downloadingStatusMessage = `正在下载${versionName}结果... ${percent}%`;
-                    } else {
+        } else {
                         downloadingStatusMessage = `正在下载... ${percent}%`;
                     }
                     // 立即更新状态显示（只有在未重置时）
@@ -2081,7 +2081,7 @@ async function downloadFileNativeApp(url, filename, version = null) {
                 const versionName = version === 'modular' ? 'Modular版本' : 'V2版本';
                 updateStatus(version ? `${versionName}请从分享菜单选择"保存到相册"` : '请从分享菜单选择"保存到相册"', 'info');
                 showProgress(100, '下载完成');
-                return true;
+        return true;
             }
         } catch (shareError) {
             console.warn('⚠️ Share 插件调用失败:', shareError);
@@ -2120,7 +2120,7 @@ async function downloadFileNativeApp(url, filename, version = null) {
         console.error('❌ 原生 App 下载失败:', error);
         // 只有在未重置时才更新错误状态
         if (isDownloading) {
-            updateStatus(`下载失败: ${error.message}`, 'error');
+        updateStatus(`下载失败: ${error.message}`, 'error');
         }
         throw error;
     } finally {
@@ -2309,7 +2309,7 @@ async function downloadFileWithBlob(url, filename, version = null) {
             updateStatus('下载已开始', 'success');
         }
         showProgress(100, '下载完成');
-        return true;
+            return true;
     } catch (error) {
         // 清除下载上下文和reader引用
         currentDownloadContext = null;

@@ -13,14 +13,14 @@
   <!-- 音频波形（完全居中对称，横向宽度更大） -->
   <g transform="translate(50, 50)">
     <!-- 左侧波形（3条，从外到中心逐渐增高） -->
-    <rect x="-28" y="-8" width="6" height="16" rx="3" fill="white"/>
-    <rect x="-16" y="-18" width="6" height="36" rx="3" fill="white"/>
-    <rect x="-4" y="-28" width="6" height="56" rx="3" fill="white"/>
+    <rect x="-31" y="-8" width="6" height="16" rx="3" fill="white"/>
+    <rect x="-19" y="-18" width="6" height="36" rx="3" fill="white"/>
+    <rect x="-7" y="-28" width="6" height="56" rx="3" fill="white"/>
     
     <!-- 右侧波形（3条，与左侧完全对称） -->
-    <rect x="4" y="-28" width="6" height="56" rx="3" fill="white"/>
-    <rect x="16" y="-18" width="6" height="36" rx="3" fill="white"/>
-    <rect x="28" y="-8" width="6" height="16" rx="3" fill="white"/>
+    <rect x="1" y="-28" width="6" height="56" rx="3" fill="white"/>
+    <rect x="13" y="-18" width="6" height="36" rx="3" fill="white"/>
+    <rect x="25" y="-8" width="6" height="16" rx="3" fill="white"/>
   </g>
   
   <!-- 中心节拍点（表示同步对齐） -->
