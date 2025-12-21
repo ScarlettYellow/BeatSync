@@ -1546,6 +1546,7 @@ async function uploadFile(file, fileType, retryCount = 0) {
             response = await new Promise((resolve, reject) => {
                 const xhr = new XMLHttpRequest();
                 let timeoutId;
+                const totalSize = file.size; // 保存文件总大小，用于备用计算
                 
                 // 设置超时
                 timeoutId = setTimeout(() => {
@@ -1553,12 +1554,29 @@ async function uploadFile(file, fileType, retryCount = 0) {
                     reject(new Error('AbortError'));
                 }, timeoutMs);
                 
-                // 上传进度事件
+                // 先打开请求
+                xhr.open('POST', `${API_BASE_URL}/api/upload`);
+                
+                // 上传进度事件（在open之后添加，更可靠）
                 xhr.upload.addEventListener('progress', (e) => {
-                    if (e.lengthComputable) {
-                        const percent = Math.round((e.loaded / e.total) * 100);
+                    console.log('📊 上传进度事件:', {
+                        loaded: e.loaded,
+                        total: e.total,
+                        lengthComputable: e.lengthComputable,
+                        fileSize: totalSize
+                    });
+                    
+                    // 优先使用e.total，如果不可用则使用文件大小
+                    const total = e.lengthComputable ? e.total : totalSize;
+                    if (total > 0) {
+                        const percent = Math.round((e.loaded / total) * 100);
+                        console.log(`📊 更新进度: ${percent}%`);
                         uploadProgressFill.style.width = percent + '%';
-                        uploadProgressText.textContent = `${percent}% (${formatFileSize(e.loaded)} / ${formatFileSize(e.total)})`;
+                        uploadProgressText.textContent = `${percent}% (${formatFileSize(e.loaded)} / ${formatFileSize(total)})`;
+                    } else {
+                        // 如果total不可用，至少显示已上传的大小
+                        console.log(`📊 更新进度（部分）: ${formatFileSize(e.loaded)} 已上传`);
+                        uploadProgressText.textContent = `${formatFileSize(e.loaded)} 已上传...`;
                     }
                 });
                 
@@ -1614,7 +1632,6 @@ async function uploadFile(file, fileType, retryCount = 0) {
                 });
                 
                 // 发送请求
-                xhr.open('POST', `${API_BASE_URL}/api/upload`);
                 xhr.send(formData);
             });
             
