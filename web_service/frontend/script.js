@@ -1,6 +1,12 @@
 // 检测是否为 Capacitor 原生 App 环境（全局变量）
 const isCapacitorNative = typeof window.Capacitor !== 'undefined' && window.Capacitor.isNativePlatform;
 
+// 确认脚本已加载
+console.log('[BeatSync] script.js 已加载', {
+    isCapacitorNative,
+    timestamp: new Date().toISOString()
+});
+
 // 原生分享/保存功能开关（已回退到分享菜单方案）
 const USE_NATIVE_SAVE_TO_GALLERY = false;
 
@@ -220,6 +226,12 @@ let downloadingVersion = null;
 let downloadingStatusMessage = null; // 当前显示的下载状态消息
 let currentDownloadContext = null; // 保存当前下载的上下文，用于恢复
 
+// 下载缓存：存储已下载的文件信息，避免重复下载
+let downloadedCache = {
+    v2: null,      // { blob: Blob, filename: string, fileUri: string }
+    modular: null  // { blob: Blob, filename: string, fileUri: string }
+};
+
 // 轮询状态管理
 let isPolling = false;
 let currentPollInterval = null; // 当前轮询定时器
@@ -383,11 +395,552 @@ document.addEventListener('DOMContentLoaded', () => {
         document.documentElement.style.setProperty('overflow-y', 'hidden', 'important');
         document.body.style.setProperty('overflow-y', 'hidden', 'important');
         
-        // 添加内联样式到head（更可靠）
+        // 尝试动态加载完整的 CSS 文件（修复 capacitor://localhost CSS 加载问题）
+        // 如果外部 CSS 只加载了部分规则，则从文件读取完整内容并注入
+        // 延迟执行，确保 WebView 完全初始化
+        console.log('[CSS 修复] 准备检查和修复 CSS 加载...');
+        setTimeout(() => {
+            (async () => {
+                try {
+                    const allStyleSheets = Array.from(document.styleSheets);
+                    console.log(`[CSS 诊断] 找到 ${allStyleSheets.length} 个样式表`);
+            
+            allStyleSheets.forEach((sheet, index) => {
+                try {
+                    const ruleCount = sheet.cssRules ? sheet.cssRules.length : 0;
+                    console.log(`[CSS 诊断] 样式表 ${index}: ${sheet.href || '(内联)'} - ${ruleCount} 条规则`);
+                } catch (e) {
+                    console.log(`[CSS 诊断] 样式表 ${index}: ${sheet.href || '(内联)'} - 无法访问规则 (CORS?)`);
+                }
+            });
+            
+            const externalStyleSheet = allStyleSheets.find(s => s.href && s.href.includes('style.css'));
+            if (externalStyleSheet) {
+                console.log(`[CSS 诊断] 找到外部 style.css: ${externalStyleSheet.href}`);
+                try {
+                    const ruleCount = externalStyleSheet.cssRules ? externalStyleSheet.cssRules.length : 0;
+                    console.log(`[CSS 诊断] 外部 CSS 规则数量: ${ruleCount}`);
+                    
+                    // 如果外部 CSS 规则数量少于 50，说明没有完整加载，尝试动态加载
+                    // 注意：完整 CSS 文件应该有更多规则，14 条明显太少
+                    if (ruleCount < 50) {
+                        console.warn(`⚠️ [CSS 修复] 外部 CSS 只加载了 ${ruleCount} 条规则（预期应 > 50），尝试动态加载完整 CSS...`);
+                        try {
+                            const response = await fetch(externalStyleSheet.href);
+                            if (!response.ok) {
+                                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                            }
+                            const cssText = await response.text();
+                            console.log(`[CSS 修复] 成功获取 CSS 内容，长度: ${cssText.length} 字符`);
+                            
+                            // 方法1：尝试替换现有的 style.css link（如果存在）
+                            const existingLink = document.querySelector('link[href*="style.css"]');
+                            if (existingLink) {
+                                // 创建一个新的 style 标签替换 link
+                                const fullStyleElement = document.createElement('style');
+                                fullStyleElement.id = 'dynamic-style-css';
+                                fullStyleElement.textContent = cssText;
+                                existingLink.parentNode.insertBefore(fullStyleElement, existingLink);
+                                existingLink.remove(); // 移除旧的 link
+                                console.log('✅ [CSS 修复] 已替换 style.css link，注入完整 CSS');
+                            } else {
+                                // 方法2：如果没有 link，直接添加到 head 开头
+                                const fullStyleElement = document.createElement('style');
+                                fullStyleElement.id = 'dynamic-style-css';
+                                fullStyleElement.textContent = cssText;
+                                document.head.insertBefore(fullStyleElement, document.head.firstChild);
+                                console.log('✅ [CSS 修复] 动态加载完整 CSS 成功，已注入到页面');
+                            }
+                            
+                            // 移除 app-specific-styles 中的冗余样式，只保留必要的 App 端覆盖
+                            const appSpecificStyle = document.getElementById('app-specific-styles');
+                            if (appSpecificStyle) {
+                                appSpecificStyle.textContent = `
+                                    /* 只保留必要的 App 端样式覆盖 */
+                                    body {
+                                        padding-top: ${Math.max(90, safeAreaTop ? safeAreaTop + 30 : 70)}px !important;
+                                        padding-bottom: ${Math.max(20, safeAreaBottom)}px !important;
+                                        overflow-y: hidden !important;
+                                    }
+                                    
+                                    html {
+                                        overflow-y: hidden !important;
+                                    }
+                                    
+                                    .container {
+                                        min-height: auto !important;
+                                    }
+                                    
+                                    .upload-section {
+                                        flex: none !important;
+                                    }
+                                    
+                                    .status-section {
+                                        min-height: auto !important;
+                                    }
+                                    
+                                    h1 {
+                                        margin-top: 0px !important;
+                                        padding-top: 0px !important;
+                                    }
+                                    
+                                    /* 隐藏滚动条 */
+                                    ::-webkit-scrollbar {
+                                        display: none !important;
+                                    }
+                                    
+                                    * {
+                                        -ms-overflow-style: none !important;
+                                        scrollbar-width: none !important;
+                                    }
+                                `;
+                                console.log('✅ [CSS 修复] 已清理冗余内联样式，只保留必要的 App 端覆盖');
+                            }
+                            
+                            // 验证样式是否被应用，如果未应用则强制应用关键样式
+                            setTimeout(() => {
+                                const testBtn = document.querySelector('.upload-btn');
+                                if (testBtn) {
+                                    const computedBg = getComputedStyle(testBtn).backgroundColor;
+                                    console.log(`[CSS 验证] .upload-btn 背景色: ${computedBg}`);
+                                    if (computedBg !== 'rgb(0, 122, 255)' && computedBg !== '#007AFF') {
+                                        console.warn('⚠️ [CSS 验证] 样式未正确应用，背景色:', computedBg);
+                                        console.log('[CSS 修复] 强制应用关键样式作为备用方案...');
+                                        
+                                        // 检查动态加载的样式表是否存在
+                                        const dynamicStyle = document.getElementById('dynamic-style-css');
+                                        if (dynamicStyle) {
+                                            console.log('[CSS 修复] 动态样式表存在，检查规则数量...');
+                                            try {
+                                                const sheets = Array.from(document.styleSheets);
+                                                const dynamicSheet = sheets.find(s => s.ownerNode && s.ownerNode.id === 'dynamic-style-css');
+                                                if (dynamicSheet) {
+                                                    const ruleCount = dynamicSheet.cssRules ? dynamicSheet.cssRules.length : 0;
+                                                    console.log(`[CSS 修复] 动态样式表规则数量: ${ruleCount}`);
+                                                    
+                                                    // 检查是否有 .upload-btn 规则
+                                                    let hasUploadBtnRule = false;
+                                                    try {
+                                                        for (let i = 0; i < Math.min(ruleCount, 100); i++) {
+                                                            const rule = dynamicSheet.cssRules[i];
+                                                            if (rule.selectorText && rule.selectorText.includes('upload-btn')) {
+                                                                hasUploadBtnRule = true;
+                                                                console.log(`[CSS 修复] 找到 .upload-btn 规则: ${rule.selectorText}`);
+                                                                break;
+                                                            }
+                                                        }
+                                                    } catch (e) {
+                                                        console.warn('[CSS 修复] 无法遍历规则:', e.message);
+                                                    }
+                                                    
+                                                    if (!hasUploadBtnRule) {
+                                                        console.error('❌ [CSS 修复] 动态样式表中没有找到 .upload-btn 规则！');
+                                                    }
+                                                }
+                                            } catch (e) {
+                                                console.error('[CSS 修复] 无法访问动态样式表:', e.message);
+                                            }
+                                        }
+                                        
+                                        // 作为最后的备用方案，注入完整的 CSS 样式
+                                        console.log('[CSS 修复] 注入完整备用 CSS 样式...');
+                                        const appSpecificStyle = document.getElementById('app-specific-styles');
+                                        if (appSpecificStyle) {
+                                            appSpecificStyle.textContent = `
+                                                /* 完整的备用 CSS 样式（当动态加载失败时使用） */
+                                                * {
+                                                    margin: 0;
+                                                    padding: 0;
+                                                    box-sizing: border-box;
+                                                }
+                                                
+                                                body {
+                                                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', sans-serif;
+                                                    font-size: 16px;
+                                                    line-height: 1.5;
+                                                    background-color: #F5F5F5 !important;
+                                                    color: #333333 !important;
+                                                    padding-top: ${Math.max(90, safeAreaTop ? safeAreaTop + 30 : 70)}px !important;
+                                                    padding-bottom: ${Math.max(20, safeAreaBottom)}px !important;
+                                                    overflow-y: hidden !important;
+                                                }
+                                                
+                                                html {
+                                                    overflow-y: hidden !important;
+                                                    background-color: #F5F5F5 !important;
+                                                }
+                                                
+                                                .container {
+                                                    max-width: 800px;
+                                                    margin: 0 auto;
+                                                    padding: 20px 16px !important;
+                                                    min-height: auto !important;
+                                                    display: flex !important;
+                                                    flex-direction: column !important;
+                                                    gap: 24px;
+                                                    position: relative;
+                                                    background-color: #F5F5F5 !important;
+                                                }
+                                                
+                                                h1 {
+                                                    margin-top: 0px !important;
+                                                    padding-top: 0px !important;
+                                                    margin-bottom: 20px;
+                                                    text-align: center;
+                                                    font-size: 28px;
+                                                    font-weight: 700;
+                                                    color: #333333 !important;
+                                                }
+                                                
+                                                h1 .title-en {
+                                                    display: block;
+                                                    font-size: 28px;
+                                                    font-weight: 700;
+                                                    color: #333333 !important;
+                                                }
+                                                
+                                                h1 .title-cn {
+                                                    display: block;
+                                                    font-size: 16px;
+                                                    font-weight: 500;
+                                                    color: #666666 !important;
+                                                    margin-top: 4px;
+                                                }
+                                                
+                                                .upload-section {
+                                                    display: flex !important;
+                                                    flex-direction: column !important;
+                                                    gap: 16px;
+                                                    flex: none !important;
+                                                }
+                                                
+                                                .upload-area {
+                                                    background: white !important;
+                                                    border: 2px dashed #CCCCCC !important;
+                                                    border-radius: 12px !important;
+                                                    padding: 24px 16px !important;
+                                                    text-align: center;
+                                                    min-height: 110px;
+                                                    display: flex !important;
+                                                    flex-direction: column !important;
+                                                    justify-content: center;
+                                                    align-items: center;
+                                                    transition: all 0.3s ease;
+                                                }
+                                                
+                                                .upload-area h2 {
+                                                    font-size: 18px !important;
+                                                    font-weight: 600 !important;
+                                                    color: #333333 !important;
+                                                    margin-bottom: 20px !important;
+                                                }
+                                                
+                                                .upload-hint {
+                                                    font-size: 14px !important;
+                                                    color: #999999 !important;
+                                                    margin-top: 8px !important;
+                                                    margin-bottom: 0 !important;
+                                                }
+                                                
+                                                .upload-btn {
+                                                    background-color: #007AFF !important;
+                                                    color: white !important;
+                                                    border: none !important;
+                                                    padding: 12px 30px !important;
+                                                    font-size: 16px !important;
+                                                    font-weight: 600 !important;
+                                                    border-radius: 8px !important;
+                                                    cursor: pointer;
+                                                    transition: background-color 0.3s ease;
+                                                }
+                                                
+                                                .process-btn {
+                                                    background-color: #007AFF !important;
+                                                    color: white !important;
+                                                    border: none !important;
+                                                    padding: 15px 50px !important;
+                                                    font-size: 18px !important;
+                                                    font-weight: 600 !important;
+                                                    border-radius: 8px !important;
+                                                    cursor: pointer;
+                                                    transition: background-color 0.3s ease;
+                                                    width: 83.125% !important;
+                                                    max-width: 83.125% !important;
+                                                }
+                                                
+                                                .process-btn:not(:disabled) {
+                                                    background-color: #007AFF !important;
+                                                    color: white !important;
+                                                }
+                                                
+                                                .process-btn:disabled {
+                                                    background-color: #CCCCCC !important;
+                                                    color: #FFFFFF !important;
+                                                    cursor: not-allowed;
+                                                }
+                                                
+                                                .file-info {
+                                                    margin-top: 12px;
+                                                    font-size: 14px;
+                                                    color: #666666 !important;
+                                                    text-align: left;
+                                                }
+                                                
+                                                .action-section {
+                                                    margin-top: 0 !important;
+                                                    margin-bottom: 12px !important;
+                                                }
+                                                
+                                                .action-buttons {
+                                                    display: flex !important;
+                                                    flex-direction: column !important;
+                                                    gap: 12px;
+                                                    align-items: center;
+                                                }
+                                                
+                                                .reset-btn {
+                                                    background-color: transparent !important;
+                                                    color: #666666 !important;
+                                                    border: none !important;
+                                                    padding: 8px 16px !important;
+                                                    font-size: 16px !important;
+                                                    font-weight: 500 !important;
+                                                    cursor: pointer;
+                                                    text-align: center;
+                                                }
+                                                
+                                                .status-section {
+                                                    min-height: auto !important;
+                                                    margin-bottom: 12px !important;
+                                                }
+                                                
+                                                .status-text,
+                                                .status-message {
+                                                    font-size: 16px !important;
+                                                    color: #666666 !important;
+                                                    text-align: center !important;
+                                                    margin: 0 !important;
+                                                }
+                                                
+                                                /* 状态文字颜色（根据状态变化） */
+                                                .status-text.success {
+                                                    color: #28A745 !important;
+                                                }
+                                                
+                                                .status-text.error {
+                                                    color: #DC3545 !important;
+                                                }
+                                                
+                                                .status-text.info {
+                                                    color: #2196F3 !important;
+                                                }
+                                                
+                                                .status-text.processing {
+                                                    color: #FFA500 !important;
+                                                }
+                                                
+                                                /* 重置按钮图标 */
+                                                .reset-btn::before {
+                                                    content: "" !important;
+                                                    width: 20px !important;
+                                                    height: 20px !important;
+                                                    display: inline-block !important;
+                                                    background: center / contain no-repeat url("data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiPz4KPHN2ZyB2ZXJzaW9uPSIxLjEiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgd2lkdGg9IjUxMiIgaGVpZ2h0PSI1MTIiPgo8cGF0aCBkPSJNMCAwIEMzLjc0MjcyNjUgMi44NTc3NDY4MyA1LjYyOTkxNDY0IDUuNTM1OTA5NDggNy4yNzM0Mzc1IDkuODk4NDM3NSBDNy43NDE3ODM1NSAxNC4xMDE3NDA4OSA3Ljc2MjExNTMzIDE4LjI4OTI3NzY5IDcuNzg1MTU2MjUgMjIuNTE1NjI1IEM3LjgwMzEwNzQ1IDIzLjcyNzkxNzc5IDcuODIxMDU4NjUgMjQuOTQwMjEwNTcgNy44Mzk1NTM4MyAyNi4xODkyMzk1IEM3Ljg5MzYxNDc0IDMwLjA1MDYwMzc2IDcuOTI3NTQwMiAzMy45MTE4NDQ2NiA3Ljk2MDkzNzUgMzcuNzczNDM3NSBDNy45OTQxMTQxNiA0MC4zOTU4NTA0OCA4LjAyODYwNDE0IDQzLjAxODI0NzE5IDguMDY0NDUzMTIgNDUuNjQwNjI1IEM4LjE0OTMzOTA4IDUyLjA1OTc4NTIzIDguMjE3NzA3MDcgNTguNDc4OTYxNSA4LjI3MzQzNzUgNjQuODk4NDM3NSBDOC45NDk5MDMyNiA2NC4yODMxOTIxNCA5LjYyNjM2OTAyIDYzLjY2Nzk0Njc4IDEwLjMyMzMzMzc0IDYzLjAzNDA1NzYyIEMxMS4yMTYxNDA0NCA2Mi4yMjU1MzM0NSAxMi4xMDg5NDcxNCA2MS40MTcwMDkyOCAxMy4wMjg4MDg1OSA2MC41ODM5ODQzOCBDMTMuOTExNTI0MzUgNTkuNzgzMTE0MDEgMTQuNzk0MjQwMTEgNTguOTgyMjQzNjUgMTUuNzAzNzA0ODMgNTguMTU3MTA0NDkgQzE4Ljk0NjI0NDczIDU1LjMwNzA3MzQ3IDIyLjMxNzMyMjA1IDUyLjgwMDQ5MDY3IDI1Ljg5ODQzNzUgNTAuMzk4NDM3NSBDMjYuNTc0NDcwMjEgNDkuOTQwNDk4MDUgMjcuMjUwNTAyOTMgNDkuNDgyNTU4NTkgMjcuOTQ3MDIxNDggNDkuMDEwNzQyMTkgQzM1LjE1MDk2OTMgNDQuMjAzMTEyNzggNDIuNjAwNTcxNzIgMzkuOTA4OTQ0MjggNTAuMjczNDM3NSAzNS44OTg0Mzc1IEM1MC44NjkxNDU1MSAzNS41ODQyMjg1MiA1MS40NjQ4NTM1MiAzNS4yNzAwMTk1MyA1Mi4wNzg2MTMyOCAzNC45NDYyODkwNiBDOTQuMzM3NDcwMjUgMTIuOTkwODk3MzQgMTQ3LjA5ODkxMjg5IDEwLjQxMjMxMzc1IDE5Mi4xODEzOTY0OCAyNC40ODE5MzM1OSBDMjI1LjIxNzc5MzY4IDM1LjI4NjMzMTgzIDI1Ny4yNTE0NjY0OCA1NC41NzU3NzMyMyAyNzkuMjczNDM3NSA4MS44OTg0Mzc1IEMyODAuMDc5MTAxNTYgODIuODY2NTIzNDQgMjgwLjg4NDc2NTYyIDgzLjgzNDYwOTM4IDI4MS43MTQ4NDM3NSA4NC44MzIwMzEyNSBDMjk5LjQwNzE1MjMgMTA2LjQwNDY1Mzk5IDMxMy4zNzYyNjk4NCAxMzEuNzgzMjE2NDkgMzIwLjI3MzQzNzUgMTU4Ljg5ODQzNzUgQzMyMC40Njg3MzA0NyAxNTkuNjU3NTM0MTggMzIwLjY2NDAyMzQ0IDE2MC40MTY2MzA4NiAzMjAuODY1MjM0MzggMTYxLjE5ODczMDQ3IEMzMzMuMzc4MDIxNTIgMjExLjI2MDQxMTcgMzI0Ljk4MjU2MTYgMjY0LjQ2NjUzMzY5IDI5OC44MzU5Mzc1IDMwOC42NDg0Mzc1IEMyODYuNzQzMTA3MTYgMzI4LjU5NjQzOTY5IDI3MC42ODU4MjE4IDM0Ni42MTc0OTYxMSAyNTIuMjczNDM3NSAzNjAuODk4NDM3NSBDMjUxLjc0MTg2MDM1IDM2MS4zMTcwNjA1NSAyNTEuMjEwMjgzMiAzNjEuNzM1NjgzNTkgMjUwLjY2MjU5NzY2IDM2Mi4xNjY5OTIxOSBDMjMzLjgwMTQ5MzY0IDM3NS4zNzIwMDE5NiAyMTUuMTc3NTIyNjkgMzg1LjEyMzg2MDkxIDE5NS4yNzM0Mzc1IDM5Mi44OTg0Mzc1IEMxOTQuNjE3NDY1ODIgMzkzLjE2MjM3MzA1IDE5My45NjE0OTQxNCAzOTMuNDI2MzA4NTkgMTkzLjI4NTY0NDUzIDM5My42OTgyNDIxOSBDMTY0LjQ3MDU5ODM2IDQwNS4xNTAwNzg3MiAxMjYuMzU2NzYyOTEgNDA1LjkxODM0MDcyIDk2LjI3MzQzNzUgMzk4Ljg5ODQzNzUgQzk1LjUxNTE0NjQ4IDM5OC43MzIxNDg0NCA5NC43NTY4NTU0NyAzOTguNTY1ODU5MzggOTMuOTc1NTg1OTQgMzk4LjM5NDUzMTI1IEM1Ni42Mzk4NTM0NiAzOTAuMDczNzMyNDMgMjQuODc5ODYxMzggMzcwLjkyOTQ5NDggLTIuNzI2NTYyNSAzNDQuODk4NDM3NSBDLTMuOTAyMTg3NSAzNDMuODA0MDIzNDQgLTMuOTAyMTg3NSAzNDMuODA0MDIzNDQgLTUuMTAxNTYyNSAzNDIuNjg3NSBDLTE0LjU2NTg2MjU3IDMzMy41OTUwMTE3MiAtMjkuNjIwMTY2MzYgMzE4LjU3NDQ0MTc5IC0zMS4wMjczNDM3NSAzMDQuOTk2MDkzNzUgQy0zMS4wNTQwNjA4NyAyOTguMDc2MzU4NDcgLTMwLjk4OTgwODQ4IDI5My4yMjUyNTMyMSAtMjUuOTIxODc1IDI4OC4wNTg1OTM3NSBDLTE5LjExODY2ODI1IDI4MS43ODE2NzI4IC0xNC4wNDU0NTExNSAyODAuNDU2NTgwNDUgLTQuODEyNSAyODAuNjY0MDYyNSBDMS4yNTE1MzkxMSAyODEuMTI0NjIyNDMgNC4wODkwOTAzNiAyODMuNTI2ODM2NjggOC4wODU5Mzc1IDI4Ny44MzU5Mzc1IEMxMS4wODU5NDIxNCAyOTEuMzQ3MzA2NTcgMTMuODUxNjA5NjUgMjk0Ljk5MDI5ODU0IDE2LjU4NTkzNzUgMjk4LjcxMDkzNzUgQzI0LjMxMTYxMzUzIDMwOS4xMjY2ODU5OCAzMi44Njk2NzEyOCAzMTguMDg4NDg2OTcgNDMuMjczNDM3NSAzMjUuODk4NDM3NSBDNDQuMjM1MDc4MTMgMzI2LjYyNTQ2ODc1IDQ1LjE5NjcxODc1IDMyNy4zNTI1IDQ2LjE4NzUgMzI4LjEwMTU2MjUgQzY5LjkyMzAxODgxIDM0NS4yODcyNzk5MiA5OC44NDEzNDgxNSAzNTUuODk1NTY2MzEgMTI4LjI3MzQzNzUgMzU2Ljg5ODQzNzUgQzEyOS4zODA3NDIxOSAzNTYuOTM4Mzk4NDQgMTMwLjQ4ODA0Njg4IDM1Ni45NzgzNTkzOCAxMzEuNjI4OTA2MjUgMzU3LjAxOTUzMTI1IEMxNzAuNjIwMDM2NzggMzU3LjcxODAwMjUgMjA3LjA3NzY4MTA4IDM0My45NTk4ODE4OCAyMzUuMjczNDM3NSAzMTYuODk4NDM3NSBDMjM2Ljk1OTU5NTMyIDMxNS4yNTE0OTI2NSAyMzguNjI5MTM5MjEgMzEzLjU4NzE3NjI5IDI0MC4yNzM0Mzc1IDMxMS44OTg0Mzc1IEMyNDEuMDQwOTUzMzcgMzExLjE2Mzc5MjcyIDI0MS4wNDA5NTMzNyAzMTEuMTYzNzkyNzIgMjQxLjgyMzk3NDYxIDMxMC40MTQzMDY2NCBDMjQ2LjEzNzQ1ODU4IDMwNi4yNDcxODcxOCAyNDkuNzM1OTAxMDUgMzAxLjg4NTU2MDggMjUzLjE0ODQzNzUgMjk2Ljk2MDkzNzUgQzI1My42NjMwOTU3IDI5Ni4yMjAwNDg4MyAyNTQuMTc3NzUzOTEgMjk1LjQ3OTE2MDE2IDI1NC43MDgwMDc4MSAyOTQuNzE1ODIwMzEgQzI3Ny41Mzk2ODE5NyAyNjEuMzY4MjU0MDIgMjg4LjA1MTQ1NTk4IDIyMS40NTY2MzQgMjgwLjgxNjg5NDUzIDE4MS4zNjg2NTIzNCBDMjczLjEwMjQ0MTAzIDE0Mi4xNTkwNzE2OSAyNTEuMDEwNjIxNzcgMTA4Ljk2MDY1NTI0IDIxOCA4Ni4zNDM3NSBDMjAzLjg0OTIxNjYgNzYuOTIyMzY2NDUgMTg4LjcyODk5NjMzIDY5Ljk4MTYzMTE4IDE3Mi40NjA5Mzc1IDY1LjA4NTkzNzUgQzE3MS44MTY0ODY4MiA2NC44OTA5NjY4IDE3MS4xNzIwMzYxMyA2NC42OTU5OTYwOSAxNzAuNTA4MDU2NjQgNjQuNDk1MTE3MTkgQzE1OS4yODU4NDA4OCA2MS4yOTQ4MTcyNiAxNDguMjE4MTU0ODEgNjAuNTIyMDU0MjUgMTM2LjU4NTkzNzUgNjAuNTg1OTM3NSBDMTM1Ljg3OTAwNzU3IDYwLjU4ODA5MjY1IDEzNS4xNzIwNzc2NCA2MC41OTAyNDc4IDEzNC40NDM3MjU1OSA2MC41OTI0NjgyNiBDMTIzLjc3NTA4MzQ3IDYwLjY0NDYzMjUgMTEzLjYzMDE4ODg5IDYxLjEyOTk0OTk2IDEwMy4yNzM0Mzc1IDYzLjg5ODQzNzUgQzEwMi4xMjQzOTk0MSA2NC4xODg0NzY1NiAxMDIuMTI0Mzk5NDEgNjQuMTg4NDc2NTYgMTAwLjk1MjE0ODQ0IDY0LjQ4NDM3NSBDODQuMzQxNjE3MTYgNjguNzQzODIyNjcgNjkuMjI3NjEyOTkgNzUuMzQyMzkwOTcgNTQuODk4NDM3NSA4NC43NzM0Mzc1IEM1NC4yMjIxNjMwOSA4NS4yMTgzMjUyIDUzLjU0NTg4ODY3IDg1LjY2MzIxMjg5IDUyLjg0OTEyMTA5IDg2LjEyMTU4MjAzIEM0NS45MTUzODE2MSA5MC44Njc2NDQ0MiAzOS42MjgyNzcyOSA5Ni40MTgxMDU3NCAzMy4yNzM0Mzc1IDEwMS44OTg0Mzc1IEMzNC40NjgyNzc1OSAxMDEuOTA3MjM2ODYgMzQuNDY4Mjc3NTkgMTAxLjkwNzIzNjg2IDM1LjY4NzI1NTg2IDEwMS45MTYyMTM5OSBDNDMuMjE5NjM3MTcgMTAxLjk3NDI4NDkzIDUwLjc1MTY5MzEyIDEwMi4wNDY0NDMxMyA1OC4yODM3ODI5NiAxMDIuMTM0MTUyNDEgQzYyLjE1NTQ3NTc3IDEwMi4xNzg3NDc3NSA2Ni4wMjcwNjU5OSAxMDIuMjE4MDI3MTEgNjkuODk4OTI1NzggMTAyLjI0NDg3MzA1IEM3My42NDAzNjE2OSAxMDIuMjcxMDE1MDMgNzcuMzgxNDAwNDcgMTAyLjMxMTQ5MjY5IDgxLjEyMjU4OTExIDEwMi4zNjE2MjM3NiBDODIuNTQ0OTYyOTEgMTAyLjM3ODIxOTI5IDgzLjk2NzQwNTI4IDEwMi4zODk3Nzg4OSA4NS4zODk4NjIwNiAxMDIuMzk2MDUxNDEgQzEwMi4wNzM2ODUyIDEwMi40NzcwMTc2NyAxMDIuMDczNjg1MiAxMDIuNDc3MDE3NjcgMTA4LjI5Njg3NSAxMDcuNTQ2ODc1IEMxMDguOTY1ODk4NDQgMTA4LjQwMTUyMzQ0IDEwOC45NjU4OTg0NCAxMDguNDAxNTIzNDQgMTA5LjY0ODQzNzUgMTA5LjI3MzQzNzUgQzExMC4zNDA2NjQwNiAxMTAuMTIwMzUxNTYgMTEwLjM0MDY2NDA2IDExMC4xMjAzNTE1NiAxMTEuMDQ2ODc1IDExMC45ODQzNzUgQzExNS4wNjc2OTYzMSAxMTcuMjU4OTA1MDcgMTE0Ljk3NDEyNjU1IDEyMy42NTUwNjQ0NCAxMTQuMjczNDM3NSAxMzAuODk4NDM3NSBDMTEyLjM5Nzc0MTc4IDEzNy41ODA2MDM1IDEwOC4yNzQ0MTg1MyAxNDEuNTExNjMxOTQgMTAyLjQwMjUzMTYyIDE0NS4wMTQ1MzU5IEM5OS44NjQyMzg3MyAxNDYuMDY4MzE3OTQgOTcuOTUzOTQwMjkgMTQ2LjE1NTQ4NTQ4IDk1LjIwNzkzMTUyIDE0Ni4xNjU4NjMwNCBDOTMuNjc1MDY3NTIgMTQ2LjE3ODY1Nzk5IDkzLjY3NTA2NzUyIDE0Ni4xNzg2NTc5OSA5Mi4xMTEyMzY1NyAxNDYuMTkxNzExNDMgQzkwLjk5NTgyNDg5IDE0Ni4xOTA4MDUwNSA4OS44ODA0MTMyMSAxNDYuMTg5ODk4NjggODguNzMxMjAxMTcgMTQ2LjE4ODk2NDg0IEM4Ny41NTE5MjU1MSAxNDYuMTk1NjgyMDcgODYuMzcyNjQ5ODQgMTQ2LjIwMjM5OTI5IDg1LjE1NzYzODU1IDE0Ni4yMDkzMjAwNyBDODEuOTI2MDYzMzQgMTQ2LjIyNTA2Mjg2IDc4LjY5NDY0MjQgMTQ2LjIzMTY3NTE1IDc1LjQ2MzAzMzQ0IDE0Ni4yMzI5NTE2NCBDNzMuNDQyMTA4OTEgMTQ2LjIzNDM3NDUxIDcxLjQyMTIxMTIxIDE0Ni4yMzg2NDY3IDY5LjQwMDI5MzM1IDE0Ni4yNDM5NDYwOCBDNjIuMzQ0MjM3NDYgMTQ2LjI2MjQ0NTIgNTUuMjg4MjU3MDcgMTQ2LjI3MDYxNzAzIDQ4LjIzMjE3NzczIDE0Ni4yNjkwNDI5NyBDNDEuNjY0NDQ5NjcgMTQ2LjI2Nzg0MjI4IDM1LjA5NzA1MDYxIDE0Ni4yODg5MzAyOCAyOC41Mjk0MDU3NyAxNDYuMzIwNTMwMyBDMjIuODgzMzg2OTEgMTQ2LjM0NjcyMzY0IDE3LjIzNzQ3NTI4IDE0Ni4zNTc0MDg5NiAxMS41OTEzOTYxNSAxNDYuMzU2MTMyMTUgQzguMjIyNTQyODkgMTQ2LjM1NTYyMzMxIDQuODUzOTgxOTUgMTQ2LjM2MTI2MjE2IDEuNDg1MTg5NDQgMTQ2LjM4MjQ4ODI1IEMtMi4yNzU1MzE4MSAxNDYuNDAyMDkxMDIgLTYuMDM1NDA3NjEgMTQ2LjM5NjMzMTM0IC05Ljc5NjE0MjU4IDE0Ni4zODQyNzczNCBDLTEwLjkwNTQ4MTU3IDE0Ni4zOTU1MTYzNiAtMTIuMDE0ODIwNTYgMTQ2LjQwNjc1NTM3IC0xMy4xNTc3NzU4OCAxNDYuNDE4MzM0OTYgQy0yMC40NDA2MzI3NyAxNDYuMzU5MDM5OTYgLTI0Ljg5MjIwNTUzIDE0NS4zMjkxNzc5NSAtMzAuNDMzNTkzNzUgMTQwLjM3MTA5Mzc1IEMtMzQuMTE5Njg2ODkgMTM1LjY2OTA0NTYxIC0zNS45NzA2NzczOSAxMzEuODI5OTIzMjEgLTM1Ljk5Mzk4ODA0IDEyNS44NDAwMjY4NiBDLTM2LjAwMjUxODAxIDEyNC44NDQ4NzU2NCAtMzYuMDExMDQ3OTcgMTIzLjg0OTcyNDQzIC0zNi4wMTk4MzY0MyAxMjIuODI0NDE3MTEgQy0zNi4wMTg5MzAwNSAxMjEuNzQzNzk1MDEgLTM2LjAxODAyMzY4IDEyMC42NjMxNzI5MSAtMzYuMDE3MDg5ODQgMTE5LjU0OTgwNDY5IEMtMzYuMDIzODA3MDcgMTE4LjQwMjg1NjI5IC0zNi4wMzA1MjQyOSAxMTcuMjU1OTA3OSAtMzYuMDM3NDQ1MDcgMTE2LjA3NDIwMzQ5IEMtMzYuMDU2NDQ3ODcgMTEyLjI4MTE5NTc4IC0zNi4wNjAzNTA2NCAxMDguNDg4MzY0ODYgLTM2LjA2MjUgMTA0LjY5NTMxMjUgQy0zNi4wNjg5MjY5NSAxMDIuMDU2MDA5MTkgLTM2LjA3NTY1NTI0IDk5LjQxNjcwNjU5IC0zNi4wODI2NzIxMiA5Ni43Nzc0MDQ3OSBDLTM2LjA5NTQ1Mzk4IDkxLjI0MjcwNDc4IC0zNi4wOTg0MzgwNiA4NS43MDgwNTI2MSAtMzYuMDk3MTY3OTcgODAuMTczMzM5ODQgQy0zNi4wOTU5Njc5NiA3My43OTI1MTA3OSAtMzYuMTE3MDQ0NDIgNjcuNDEyMDIwNzUgLTM2LjE0ODY1NTMgNjEuMDMxMjc3NDIgQy0zNi4xNzgwNTA5MSA1NC44NzY1ODYyNCAtMzYuMTg1MTQxNTQgNDguNzIyMDU2NTggLTM2LjE4Mzk0ODUyIDQyLjU2NzI5ODg5IEMtMzYuMTg2MzA1IDM5Ljk1NjY4NDAzIC0zNi4xOTUxMzExMiAzNy4zNDYwNjY1MyAtMzYuMjEwNjEzMjUgMzQuNzM1NDk2NTIgQy0zNi4yMzAyNjk0IDMxLjA3ODI2MzU5IC0zNi4yMjQ0MzUyMyAyNy40MjE4OTYxNCAtMzYuMjEyNDAyMzQgMjMuNzY0NjQ4NDQgQy0zNi4yMjM2NDEzNiAyMi42OTIxMjMyNiAtMzYuMjM0ODgwMzcgMjEuNjE5NTk4MDggLTM2LjI0NjQ1OTk2IDIwLjUxNDU3MjE0IEMtMzYuMTkxMjU2MDkgMTMuODkxNzMwNzIgLTM1LjIxMTQzNTUyIDguNjEzMDI4NzcgLTMxLjcyNjU2MjUgMi44OTg0Mzc1IEMtMjkuNTA3ODEyNSAwLjc0MjE4NzUgLTI5LjUwNzgxMjUgMC43NDIxODc1IC0yNy4yMjY1NjI1IC0wLjYwMTU2MjUgQy0yNi40NzM3NSAtMS4wNjU2MjUgLTI1LjcyMDkzNzUgLTEuNTI5Njg3NSAtMjQuOTQ1MzEyNSAtMi4wMDc4MTI1IEMtMTYuODA4Nzc2NTkgLTYuMDE4NzgwOTEgLTcuNTA4NTcxIC00Ljc5MDUzNjI1IDAgMCBaICIgZmlsbD0iIzRBNEE0QSIgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTIwLjcyNjU2MjUsNDYuMTAxNTYyNSkiLz4KPC9zdmc+Cg==") !important;
+                                                    margin-right: 4px !important;
+                                                }
+                                                
+                                                /* 下载按钮样式 */
+                                                .download-btn {
+                                                    background-color: #4CAF50 !important;
+                                                    color: white !important;
+                                                    border: none !important;
+                                                    padding: 12px 24px !important;
+                                                    font-size: 16px !important;
+                                                    border-radius: 4px !important;
+                                                    cursor: pointer !important;
+                                                    transition: background-color 0.3s !important;
+                                                    display: flex !important;
+                                                    align-items: center !important;
+                                                    gap: 8px !important;
+                                                    width: 240px !important;
+                                                    justify-content: center !important;
+                                                    box-sizing: border-box !important;
+                                                    white-space: nowrap !important;
+                                                }
+                                                
+                                                .download-btn:hover:not(:disabled) {
+                                                    background-color: #45a049 !important;
+                                                }
+                                                
+                                                .download-btn:disabled {
+                                                    background-color: #cccccc !important;
+                                                    cursor: not-allowed !important;
+                                                    opacity: 0.7 !important;
+                                                }
+                                                
+                                                .download-btn .btn-status {
+                                                    font-size: 18px !important;
+                                                }
+                                                
+                                                .download-btn .btn-text {
+                                                    font-weight: 500 !important;
+                                                }
+                                                
+                                                /* 视频结果区域 */
+                                                .video-result {
+                                                    background: white !important;
+                                                    border-radius: 12px !important;
+                                                    padding: 24px !important;
+                                                    margin-bottom: 20px !important;
+                                                    box-shadow: 0 2px 8px rgba(0,0,0,0.08) !important;
+                                                }
+                                                
+                                                .video-result h3 {
+                                                    font-size: 18px !important;
+                                                    font-weight: 600 !important;
+                                                    color: #333333 !important;
+                                                    margin-bottom: 15px !important;
+                                                }
+                                                
+                                                .video-preview-container {
+                                                    margin-bottom: 15px !important;
+                                                    text-align: center !important;
+                                                }
+                                                
+                                                .video-preview-container video {
+                                                    border-radius: 8px !important;
+                                                    box-shadow: 0 2px 8px rgba(0,0,0,0.2) !important;
+                                                    background: #000 !important;
+                                                }
+                                                
+                                                .result-actions {
+                                                    display: flex !important;
+                                                    gap: 15px !important;
+                                                    justify-content: center !important;
+                                                    flex-wrap: wrap !important;
+                                                }
+                                                
+                                                .preview-btn {
+                                                    background-color: #2196F3 !important;
+                                                    color: white !important;
+                                                    border: none !important;
+                                                    padding: 12px 24px !important;
+                                                    font-size: 16px !important;
+                                                    border-radius: 4px !important;
+                                                    cursor: pointer !important;
+                                                    transition: background-color 0.3s !important;
+                                                    display: flex !important;
+                                                    align-items: center !important;
+                                                    gap: 8px !important;
+                                                }
+                                                
+                                                /* 上传进度文本样式 */
+                                                .upload-progress-text {
+                                                    text-align: center !important;
+                                                    font-size: 14px !important;
+                                                    color: #FFA500 !important;
+                                                    font-weight: 500 !important;
+                                                }
+                                                
+                                                .upload-progress-container {
+                                                    align-items: center !important;
+                                                }
+                                                
+                                                .footer {
+                                                    text-align: center !important;
+                                                    padding: 20px 16px !important;
+                                                    margin-top: auto !important;
+                                                }
+
+                                                .footer-link {
+                                                    color: #2196F3 !important;
+                                                    text-decoration: none !important;
+                                                    display: inline-block !important;
+                                                    font-size: 12px !important;
+                                                }
+                                                
+                                                ::-webkit-scrollbar {
+                                                    display: none !important;
+                                                }
+                                                
+                                                * {
+                                                    -ms-overflow-style: none !important;
+                                                    scrollbar-width: none !important;
+                                                }
+                                            `;
+                                            console.log('✅ [CSS 修复] 已注入完整备用 CSS 样式');
+                                        } else {
+                                            console.error('❌ [CSS 修复] 找不到 app-specific-styles 元素');
+                                        }
+                                    } else {
+                                        console.log('✅ [CSS 验证] 样式已正确应用');
+                                    }
+                                }
+                            }, 200);
+                        } catch (e) {
+                            console.error('❌ [CSS 修复] 动态加载 CSS 失败:', e.message);
+                        }
+                    } else {
+                        console.log(`✅ [CSS 诊断] 外部 CSS 已完整加载（${ruleCount} 条规则）`);
+                    }
+                } catch (e) {
+                    console.warn('⚠️ [CSS 诊断] 无法检查外部 CSS 规则数量:', e.message);
+                    // 即使无法检查，也尝试动态加载
+                    console.log('[CSS 修复] 尝试动态加载 CSS 作为备用方案...');
+                    try {
+                        const response = await fetch(externalStyleSheet.href);
+                        const cssText = await response.text();
+                        const existingLink = document.querySelector('link[href*="style.css"]');
+                        const fullStyleElement = document.createElement('style');
+                        fullStyleElement.id = 'dynamic-style-css';
+                        fullStyleElement.textContent = cssText;
+                        if (existingLink) {
+                            existingLink.parentNode.insertBefore(fullStyleElement, existingLink);
+                            existingLink.remove();
+                        } else {
+                            document.head.insertBefore(fullStyleElement, document.head.firstChild);
+                        }
+                        console.log('✅ [CSS 修复] 备用方案：动态加载 CSS 成功');
+                        
+                        // 同样清理冗余内联样式
+                        const appSpecificStyle = document.getElementById('app-specific-styles');
+                        if (appSpecificStyle) {
+                            appSpecificStyle.textContent = `
+                                body {
+                                    padding-top: ${Math.max(90, safeAreaTop ? safeAreaTop + 30 : 70)}px !important;
+                                    padding-bottom: ${Math.max(20, safeAreaBottom)}px !important;
+                                    overflow-y: hidden !important;
+                                }
+                                html { overflow-y: hidden !important; }
+                                .container { min-height: auto !important; }
+                                .upload-section { flex: none !important; }
+                                .status-section { min-height: auto !important; }
+                                h1 { margin-top: 0px !important; padding-top: 0px !important; }
+                                ::-webkit-scrollbar { display: none !important; }
+                                * { -ms-overflow-style: none !important; scrollbar-width: none !important; }
+                            `;
+                        }
+                    } catch (e2) {
+                        console.error('❌ [CSS 修复] 备用方案也失败:', e2.message);
+                    }
+                }
+            } else {
+                console.warn('⚠️ [CSS 诊断] 未找到外部 style.css 样式表');
+            }
+            } catch (error) {
+                console.error('❌ [CSS 修复] CSS 诊断和修复过程中发生错误:', error);
+            }
+        })();
+        }, 100); // 延迟100ms执行，确保WebView完全初始化
+        
+        // 按钮样式现在由动态加载的完整 CSS 处理，不再需要手动设置
+        
+        // 添加精简的内联样式（只保留必要的 App 端覆盖）
+        // 完整样式由动态加载的 CSS 文件提供
         const styleElement = document.getElementById('app-specific-styles');
         if (styleElement) {
             styleElement.textContent = `
-                /* App端专用样式 - 减少顶部留白10px */
+                /* 只保留必要的 App 端样式覆盖 */
                 body {
                     padding-top: ${Math.max(90, safeAreaTop ? safeAreaTop + 30 : 70)}px !important;
                     padding-bottom: ${Math.max(20, safeAreaBottom)}px !important;
@@ -398,7 +951,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     overflow-y: hidden !important;
                 }
                 
-                /* 响应式优化：根据屏幕尺寸动态调整（通过JavaScript动态设置） */
                 .container {
                     min-height: auto !important;
                 }
@@ -592,6 +1144,10 @@ function resetState() {
     isDownloading = false;
     downloadingVersion = null;
     downloadingStatusMessage = null;
+    
+    // 清除下载缓存
+    downloadedCache.v2 = null;
+    downloadedCache.modular = null;
     
     // 重置状态显示（必须在清除下载状态后立即更新，确保覆盖下载状态）
     updateStatus('等待上传文件...', '');
@@ -1539,12 +2095,9 @@ async function pollTaskStatus(taskId) {
                     processingStatusMsg = `${statusMsg} (已等待${elapsedSeconds}秒)`;
                 }
                 
-                // 如果正在下载，同时显示下载状态和处理状态
+                // 如果正在下载，只显示下载状态，不重复显示处理状态
                 if (isDownloading && downloadingStatusMessage) {
-                    updateStatusWithMultiple(
-                        [downloadingStatusMessage, processingStatusMsg],
-                        ['processing', 'processing']
-                    );
+                    updateStatus(downloadingStatusMessage, 'processing');
                 } else {
                     updateStatus(processingStatusMsg, 'processing');
                 }
@@ -1758,8 +2311,78 @@ function updateDownloadButton(result) {
     updateResetButtonVisibility();
 }
 
+// 从缓存分享已下载的文件
+async function shareFromCache(version) {
+    const cached = downloadedCache[version];
+    if (!cached) {
+        return false;
+    }
+    
+    console.log('📤 使用缓存分享:', version);
+    
+    try {
+        // 尝试使用 Capacitor Share 插件
+        const Capacitor = window.Capacitor;
+        if (Capacitor && Capacitor.Plugins && Capacitor.Plugins.Share) {
+            const shareResult = await Capacitor.Plugins.Share.share({
+                title: cached.filename,
+                url: cached.fileUri,
+                dialogTitle: '请选择"保存到相册"'
+            });
+            console.log('✅ 缓存分享完成:', shareResult);
+            const versionName = version === 'modular' ? 'Modular版本' : 'V2版本';
+            // 无论用户是完成分享还是取消，都返回true，不触发重新下载
+            updateStatus(`${versionName}请从分享菜单选择"保存到相册"`, 'info');
+            return true;  // 返回true表示分享菜单已调起（无论用户是否完成分享）
+        }
+    } catch (shareError) {
+        // 如果是用户取消分享（AbortError），不应该触发重新下载
+        if (shareError.name === 'AbortError' || shareError.message?.includes('cancel') || shareError.message?.includes('abort')) {
+            console.log('ℹ️ 用户取消了分享菜单');
+            return true;  // 返回true，不触发重新下载
+        }
+        console.warn('⚠️ 缓存分享失败:', shareError);
+    }
+    
+    // 备用：Web Share API
+    const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+    if (isIOS && navigator.share && navigator.canShare) {
+        try {
+            const file = new File([cached.blob], cached.filename, { type: 'video/mp4' });
+            if (navigator.canShare({ files: [file] })) {
+                await navigator.share({ files: [file], title: cached.filename });
+                const versionName = version === 'modular' ? 'Modular版本' : 'V2版本';
+                updateStatus(`${versionName}请从分享菜单选择"保存到相册"`, 'info');
+                return true;
+            }
+        } catch (shareError) {
+            // 如果是用户取消分享（AbortError），不应该触发重新下载
+            if (shareError.name === 'AbortError' || shareError.name === 'NotAllowedError') {
+                console.log('ℹ️ 用户取消了分享菜单');
+                return true;  // 返回true，不触发重新下载
+            }
+            console.warn('⚠️ Web Share API 缓存分享失败:', shareError);
+        }
+    }
+    
+    return false;
+}
+
 // 下载单个文件（优化：立即响应，不等待）
 async function downloadFile(url, filename, version = null, button = null) {
+    // 检查缓存，如果已下载过，直接分享
+    if (version && downloadedCache[version]) {
+        console.log('✅ 使用缓存，直接分享:', version);
+        const shared = await shareFromCache(version);
+        if (shared) {
+            // 分享菜单已调起（无论用户完成还是取消），都不需要重新下载
+            return true;
+        }
+        // 只有在真正的错误情况下才重新下载（清除缓存）
+        console.warn('⚠️ 缓存分享失败，重新下载');
+        downloadedCache[version] = null;
+    }
+    
     requestWakeLock('download');
     try {
         // 设置下载标志（防止轮询覆盖状态）
@@ -1767,7 +2390,8 @@ async function downloadFile(url, filename, version = null, button = null) {
         downloadingVersion = version;
         setButtonLoading(button, '下载中...');
         if (statusSkeleton) statusSkeleton.style.display = 'flex';
-        showProgress(0, '准备下载...');
+        // 下载时隐藏进度条，百分比显示在状态文本中
+        hideProgress();
         
         // 检测是否为 Capacitor 原生 App 环境
         console.log('🔍 下载函数开始执行');
@@ -1796,7 +2420,8 @@ async function downloadFile(url, filename, version = null, button = null) {
         if (!isPolling) {
             updateStatus(downloadingStatusMessage, 'processing');
         }
-        showProgress(0, '准备下载...');
+        // 下载时隐藏进度条，百分比显示在状态文本中
+        hideProgress();
         
         // iOS PWA环境：直接打开新窗口到下载URL（让用户手动下载）
         if (isIOS && isPWA) {
@@ -1876,7 +2501,7 @@ async function downloadFile(url, filename, version = null, button = null) {
                 updateStatus('下载已开始', 'success');
             }
         }
-        showProgress(100, '下载已开始');
+        hideProgress();
         return true;
     } catch (error) {
         console.error(`下载 ${filename} 失败:`, error);
@@ -1923,7 +2548,8 @@ async function downloadFileNativeApp(url, filename, version = null) {
         if (!isPolling) {
             updateStatus(downloadingStatusMessage, 'processing');
         }
-        showProgress(0, '准备下载...');
+        // 下载时隐藏进度条，百分比显示在状态文本中
+        hideProgress();
         
         // 1. 下载视频文件
         console.log('📥 开始下载视频:', url);
@@ -2012,14 +2638,15 @@ async function downloadFileNativeApp(url, filename, version = null) {
                         reader.cancel();
                         throw new Error('下载已取消');
                     }
-                    showProgress(percent, `${percent}%`);
+                    // 下载时隐藏进度条，百分比显示在状态文本中
+                    hideProgress();
                     if (version) {
                         const versionName = version === 'modular' ? 'Modular版本' : 'V2版本';
-                        downloadingStatusMessage = `正在下载${versionName}结果... ${percent}%`;
-        } else {
-                        downloadingStatusMessage = `正在下载... ${percent}%`;
+                        downloadingStatusMessage = `正在下载${versionName}结果...${percent}%`;
+                    } else {
+                        downloadingStatusMessage = `正在下载...${percent}%`;
                     }
-                    // 立即更新状态显示（只有在未重置时）
+                    // 立即更新状态显示（包含百分比）
                     if (!isPolling && isDownloading && downloadingStatusMessage) {
                         updateStatus(downloadingStatusMessage, 'processing');
                     }
@@ -2067,6 +2694,17 @@ async function downloadFileNativeApp(url, filename, version = null) {
         
         console.log('📁 文件 URI:', fileUri.uri);
         
+        // 保存到下载缓存
+        if (version) {
+            downloadedCache[version] = {
+                blob: blob,
+                filename: filename,
+                fileUri: fileUri.uri,
+                filePath: filePath
+            };
+            console.log('✅ 已保存到下载缓存:', version);
+        }
+        
         // 4. 使用分享方案（Share / Web Share）
         try {
             const Capacitor = window.Capacitor;
@@ -2080,7 +2718,7 @@ async function downloadFileNativeApp(url, filename, version = null) {
                 console.log('✅ Share 插件调用成功:', shareResult);
                 const versionName = version === 'modular' ? 'Modular版本' : 'V2版本';
                 updateStatus(version ? `${versionName}请从分享菜单选择"保存到相册"` : '请从分享菜单选择"保存到相册"', 'info');
-                showProgress(100, '下载完成');
+                hideProgress();
         return true;
             }
         } catch (shareError) {
@@ -2096,7 +2734,7 @@ async function downloadFileNativeApp(url, filename, version = null) {
                 await navigator.share({ files: [file], title: filename });
                 const versionName = version === 'modular' ? 'Modular版本' : 'V2版本';
                 updateStatus(version ? `${versionName}请从分享菜单选择"保存到相册"` : '请从分享菜单选择"保存到相册"', 'info');
-                showProgress(100, '下载完成');
+                hideProgress();
                 return true;
             }
         }
@@ -2104,7 +2742,7 @@ async function downloadFileNativeApp(url, filename, version = null) {
         // 最终兜底：提示已保存到文件
         const versionName = version === 'modular' ? 'Modular版本' : 'V2版本';
         updateStatus(version ? `${versionName}已保存到文件，可在文件应用中查看` : '视频已保存到文件，可在文件应用中查看', 'success');
-        showProgress(100, '下载完成');
+        hideProgress();
         return true;
         
     } catch (error) {
@@ -2239,14 +2877,15 @@ async function downloadFileWithBlob(url, filename, version = null) {
                         reader.cancel();
                         throw new Error('下载已取消');
                     }
-                    showProgress(percent, `${percent}%`);
+                    // 下载时隐藏进度条，百分比显示在状态文本中
+                    hideProgress();
                     if (version) {
                         const versionName = version === 'modular' ? 'Modular版本' : 'V2版本';
-                        downloadingStatusMessage = `正在下载${versionName}结果... ${percent}%`;
+                        downloadingStatusMessage = `正在下载${versionName}结果...${percent}%`;
                     } else {
-                        downloadingStatusMessage = `正在下载... ${percent}%`;
+                        downloadingStatusMessage = `正在下载...${percent}%`;
                     }
-                    // 立即更新状态显示（只有在未重置时）
+                    // 立即更新状态显示（包含百分比）
                     if (!isPolling && isDownloading && downloadingStatusMessage) {
                         updateStatus(downloadingStatusMessage, 'processing');
                     }
@@ -2256,6 +2895,17 @@ async function downloadFileWithBlob(url, filename, version = null) {
         
         // 合并所有chunks
         const blob = new Blob(chunks, { type: 'application/octet-stream' }); // 使用通用类型，避免预览
+        
+        // 保存到下载缓存（用于blob下载方式）
+        if (version) {
+            downloadedCache[version] = {
+                blob: blob,
+                filename: filename,
+                fileUri: null,  // blob下载方式没有fileUri
+                filePath: null
+            };
+            console.log('✅ 已保存到下载缓存（blob方式）:', version);
+        }
         
         // 尝试使用Web Share API（iOS Safari支持，但文件大小有限制）
         const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
@@ -2308,7 +2958,7 @@ async function downloadFileWithBlob(url, filename, version = null) {
         } else {
             updateStatus('下载已开始', 'success');
         }
-        showProgress(100, '下载完成');
+        hideProgress();
             return true;
     } catch (error) {
         // 清除下载上下文和reader引用
