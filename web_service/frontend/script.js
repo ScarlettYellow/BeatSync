@@ -1700,19 +1700,36 @@ async function uploadFile(file, fileType, retryCount = 0) {
                 console.log(`📊 估算上传时间: ${(estimatedUploadTime / 1000).toFixed(1)}秒 (文件大小: ${formatFileSize(totalSize)})`);
                 
                 // 立即启动模拟进度（不等待真实进度事件）
+                // 使用基于时间的进度计算，更准确地反映实际上传进度
                 console.log('📊 启动模拟进度更新（如果收到真实进度事件将自动切换）');
                 let simulatedProgress = 0;
-                const progressStep = Math.max(0.5, Math.min(2, 100 / (estimatedUploadTime / 500))); // 根据估算时间调整步长
+                const updateInterval = 200; // 每200ms更新一次，更流畅
+                const totalUpdates = Math.ceil(estimatedUploadTime / updateInterval); // 总更新次数
+                const progressPerUpdate = 95 / totalUpdates; // 每次更新的进度增量（最多到95%）
+                
                 fallbackProgressInterval = setInterval(() => {
                     if (!hasRealProgress) {
-                        simulatedProgress = Math.min(95, simulatedProgress + progressStep); // 最多到95%
+                        // 基于已过时间计算进度，更准确
+                        const elapsed = Date.now() - uploadStartTime;
+                        const timeBasedProgress = Math.min(95, (elapsed / estimatedUploadTime) * 100);
+                        
+                        // 使用时间进度，但确保单调递增
+                        if (timeBasedProgress > simulatedProgress) {
+                            simulatedProgress = timeBasedProgress;
+                        } else {
+                            // 如果时间进度没有增加，使用小步长递增（防止卡住）
+                            simulatedProgress = Math.min(95, simulatedProgress + progressPerUpdate);
+                        }
+                        
                         uploadProgressFill.style.width = simulatedProgress + '%';
                         uploadProgressText.textContent = `${Math.round(simulatedProgress)}% (上传中...)`;
-                        if (Math.round(simulatedProgress) % 10 === 0) { // 每10%输出一次日志
-                            console.log(`📊 模拟进度: ${Math.round(simulatedProgress)}%`);
+                        
+                        // 每5%输出一次日志，减少日志量
+                        if (Math.round(simulatedProgress) % 5 === 0 && Math.round(simulatedProgress) !== Math.round(simulatedProgress - progressPerUpdate)) {
+                            console.log(`📊 模拟进度: ${Math.round(simulatedProgress)}% (已用时: ${(elapsed / 1000).toFixed(1)}s)`);
                         }
                     }
-                }, 500); // 每500ms更新一次
+                }, updateInterval);
                 
                 // 当收到真实进度事件时，清除模拟进度并切换到真实进度
                 const originalUpdateProgress = updateProgress;
