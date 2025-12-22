@@ -159,7 +159,7 @@
                     }
                     
                     // 注册新的Service Worker（带版本号，强制更新）
-                    const registration = await navigator.serviceWorker.register('/sw.js?v=20251251');
+                    const registration = await navigator.serviceWorker.register('/sw.js?v=20251252');
                     console.log('[PWA] Service Worker注册成功:', registration.scope);
                     
                     // 立即激活新的Service Worker
@@ -170,10 +170,10 @@
                         registration.installing.addEventListener('statechange', (e) => {
                             if (e.target.state === 'activated') {
                                 console.log('[PWA] Service Worker已激活，清除旧缓存');
-                                // 清除所有旧缓存（保留当前版本 beatsync-v1.3.22）
+                                // 清除所有旧缓存（保留当前版本 beatsync-v1.3.23）
                                 caches.keys().then(cacheNames => {
                                     cacheNames.forEach(cacheName => {
-                                        if (cacheName !== 'beatsync-v1.3.22') {
+                                        if (cacheName !== 'beatsync-v1.3.23') {
                                             caches.delete(cacheName);
                                         }
                                     });
@@ -203,7 +203,7 @@
     </script>
     
     <!-- 添加版本号参数，每次更新时更改版本号，强制浏览器重新加载 -->
-             <script src="script.js?v=20251251"></script>
+             <script src="script.js?v=20251252"></script>
 </body>
 </html>
 

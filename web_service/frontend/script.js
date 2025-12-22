@@ -1895,8 +1895,8 @@ function showFileInfo(fileType, filename, size) {
     const filenameSpan = document.getElementById(`${fileType}-filename`);
     const sizeSpan = document.getElementById(`${fileType}-size`);
     
-    filenameSpan.textContent = `文件名: ${filename}`;
-    sizeSpan.textContent = `大小: ${size}`;
+    filenameSpan.textContent = filename;
+    sizeSpan.textContent = size;
     infoDiv.style.display = 'block';
 }
 
@@ -2370,7 +2370,7 @@ function updateDownloadButton(result) {
     if (modularStatus === 'success' && result.modular_output) {
         modularResult.style.display = 'block';
         downloadModularBtn.disabled = false;
-        downloadModularBtn.querySelector('.btn-status').textContent = '✅';
+        downloadModularBtn.querySelector('.btn-status').textContent = '✓';
         downloadModularBtn.querySelector('.btn-text').textContent = '下载视频';
         
         downloadModularBtn.onclick = async () => {
@@ -2421,7 +2421,7 @@ function updateDownloadButton(result) {
     if (v2Status === 'success' && result.v2_output) {
         v2Result.style.display = 'block';
         downloadV2Btn.disabled = false;
-        downloadV2Btn.querySelector('.btn-status').textContent = '✅';
+        downloadV2Btn.querySelector('.btn-status').textContent = '✓';
         downloadV2Btn.querySelector('.btn-text').textContent = '下载视频';
         
         downloadV2Btn.onclick = async () => {

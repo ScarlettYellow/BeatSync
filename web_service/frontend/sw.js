@@ -1,11 +1,11 @@
 // BeatSync Service Worker
-// 版本：v1.3.22（修复缓存清理逻辑：更新保留的缓存版本号）
-const CACHE_NAME = 'beatsync-v1.3.22';
+// 版本：v1.3.23（修复UI样式：标题、文件信息、下载按钮图标）
+const CACHE_NAME = 'beatsync-v1.3.23';
 const STATIC_CACHE_URLS = [
   '/',
   '/index.html',
-  '/style.css?v=20251251',
-  '/script.js?v=20251251',
+  '/style.css?v=20251252',
+  '/script.js?v=20251252',
   '/favicon.svg',
   '/favicon.ico'
 ];
