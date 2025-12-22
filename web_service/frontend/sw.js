@@ -1,11 +1,11 @@
 // BeatSync Service Worker
-// 版本：v1.3.18（进度条改为绿色，优化模拟进度算法）
-const CACHE_NAME = 'beatsync-v1.3.18';
+// 版本：v1.3.19（进度条颜色与成功状态文本颜色统一）
+const CACHE_NAME = 'beatsync-v1.3.19';
 const STATIC_CACHE_URLS = [
   '/',
   '/index.html',
-  '/style.css?v=20251247',
-  '/script.js?v=20251247',
+  '/style.css?v=20251248',
+  '/script.js?v=20251248',
   '/favicon.svg',
   '/favicon.ico'
 ];
