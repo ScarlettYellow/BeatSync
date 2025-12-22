@@ -1,11 +1,11 @@
 // BeatSync Service Worker
-// 版本：v1.3.23（修复UI样式：标题、文件信息、下载按钮图标）
-const CACHE_NAME = 'beatsync-v1.3.23';
+// 版本：v1.3.24（修复标题排版：主标题更大更粗，副标题更小更轻）
+const CACHE_NAME = 'beatsync-v1.3.24';
 const STATIC_CACHE_URLS = [
   '/',
   '/index.html',
-  '/style.css?v=20251252',
-  '/script.js?v=20251252',
+  '/style.css?v=20251253',
+  '/script.js?v=20251253',
   '/favicon.svg',
   '/favicon.ico'
 ];

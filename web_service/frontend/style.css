@@ -108,14 +108,15 @@ body.is-native .action-buttons {
 /* 标题 */
 h1 {
     text-align: center;
-    font-size: 28px;
+    font-size: 32px;
     font-weight: bold;
     color: #333333;
     margin-bottom: 24px;
     margin-top: 8px;
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 6px;
+    align-items: center;
     line-height: 1.2;
     /* App 端增加顶部间距 */
     padding-top: 12px;
@@ -141,16 +142,19 @@ h1 {
     }
 
 h1 .title-en {
-    font-size: 28px;
+    font-size: 32px;
     font-weight: 700;
     letter-spacing: -0.5px;
     color: #333333;
+    line-height: 1.2;
 }
 
 h1 .title-cn {
-    font-size: 28px;
-    font-weight: 700;
-    color: #333333;
+    font-size: 16px;
+    font-weight: 400;
+    color: #666666;
+    line-height: 1.4;
+    margin-top: 4px;
 }
 
 /* 上传区域 */
@@ -704,43 +708,52 @@ h1 .title-cn {
     }
     
     h1 .title-en {
-        font-size: 24px;
+        font-size: 28px;
+        font-weight: 700;
     }
     
     h1 .title-cn {
-        font-size: 24px;
+        font-size: 14px;
+        font-weight: 400;
+        color: #666666;
     }
     
-    /* 如果屏幕足够宽，尝试一行显示 */
+    /* 如果屏幕足够宽，保持垂直布局 */
     @media (min-width: 360px) {
         h1 {
-            flex-direction: row;
+            flex-direction: column;
             justify-content: center;
-            align-items: baseline;
-            gap: 8px;
+            align-items: center;
+            gap: 6px;
         }
         
         h1 .title-en {
-            font-size: 22px;
+            font-size: 30px;
+            font-weight: 700;
         }
         
         h1 .title-cn {
-            font-size: 22px;
+            font-size: 15px;
+            font-weight: 400;
+            color: #666666;
         }
     }
     
-    /* 更宽的屏幕，一行显示，调整间距 */
+    /* 更宽的屏幕，保持垂直布局 */
     @media (min-width: 400px) {
         h1 {
-            gap: 10px;
+            gap: 6px;
         }
         
         h1 .title-en {
-            font-size: 24px;
+            font-size: 32px;
+            font-weight: 700;
         }
         
         h1 .title-cn {
-            font-size: 24px;
+            font-size: 16px;
+            font-weight: 400;
+            color: #666666;
         }
     }
     
