@@ -1,11 +1,11 @@
 // BeatSync Service Worker
-// 版本：v1.3.19（进度条颜色与成功状态文本颜色统一）
-const CACHE_NAME = 'beatsync-v1.3.19';
+// 版本：v1.3.20（修复App端重置按钮位置和图标显示）
+const CACHE_NAME = 'beatsync-v1.3.20';
 const STATIC_CACHE_URLS = [
   '/',
   '/index.html',
-  '/style.css?v=20251248',
-  '/script.js?v=20251248',
+  '/style.css?v=20251249',
+  '/script.js?v=20251249',
   '/favicon.svg',
   '/favicon.ico'
 ];

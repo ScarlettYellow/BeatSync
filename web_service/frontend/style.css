@@ -53,6 +53,12 @@ body.is-native .footer-link {
     font-size: 12px;
 }
 
+/* App端：重置按钮放在开始处理按钮下方 */
+body.is-native .action-buttons {
+    flex-direction: column;
+    gap: 12px;
+}
+
 .container {
     max-width: 800px;
     margin: 0 auto;
