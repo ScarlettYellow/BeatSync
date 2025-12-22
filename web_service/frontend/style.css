@@ -108,7 +108,7 @@ body.is-native .action-buttons {
 /* 标题 */
 h1 {
     text-align: center;
-    font-size: 32px;
+    font-size: 28px;
     font-weight: bold;
     color: #333333;
     margin-bottom: 24px;
@@ -142,7 +142,7 @@ h1 {
     }
 
 h1 .title-en {
-    font-size: 32px;
+    font-size: 28px;
     font-weight: 700;
     letter-spacing: -0.5px;
     color: #333333;
@@ -150,7 +150,7 @@ h1 .title-en {
 }
 
 h1 .title-cn {
-    font-size: 16px;
+    font-size: 18px;
     font-weight: 400;
     color: #666666;
     line-height: 1.4;
@@ -708,12 +708,12 @@ h1 .title-cn {
     }
     
     h1 .title-en {
-        font-size: 28px;
+        font-size: 26px;
         font-weight: 700;
     }
     
     h1 .title-cn {
-        font-size: 14px;
+        font-size: 16px;
         font-weight: 400;
         color: #666666;
     }
@@ -728,12 +728,12 @@ h1 .title-cn {
         }
         
         h1 .title-en {
-            font-size: 30px;
+            font-size: 27px;
             font-weight: 700;
         }
         
         h1 .title-cn {
-            font-size: 15px;
+            font-size: 17px;
             font-weight: 400;
             color: #666666;
         }
@@ -746,12 +746,12 @@ h1 .title-cn {
         }
         
         h1 .title-en {
-            font-size: 32px;
+            font-size: 28px;
             font-weight: 700;
         }
         
         h1 .title-cn {
-            font-size: 16px;
+            font-size: 18px;
             font-weight: 400;
             color: #666666;
         }
