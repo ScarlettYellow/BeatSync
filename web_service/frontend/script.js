@@ -1600,14 +1600,9 @@ async function uploadFile(file, fileType, retryCount = 0) {
                     console.log('⚠️ 上传中止（upload.abort事件）');
                 });
                 
-                // 在请求完成时清理模拟进度并显示100%的函数（需要在load事件中调用）
-                let cleanupFallback = null; // 稍后定义
-                
                 // 请求完成
                 xhr.addEventListener('load', () => {
                     clearTimeout(timeoutId);
-                    // 清理模拟进度
-                    if (cleanupFallback) cleanupFallback();
                     if (xhr.status >= 200 && xhr.status < 300) {
                         try {
                             const result = JSON.parse(xhr.responseText);
@@ -1642,6 +1637,8 @@ async function uploadFile(file, fileType, retryCount = 0) {
                     } else {
                         reject(new Error(`HTTP ${xhr.status}: ${xhr.statusText}`));
                     }
+                    // 清理模拟进度（在load事件中调用）
+                    if (cleanupFallback) cleanupFallback();
                 });
                 
                 // 请求错误
