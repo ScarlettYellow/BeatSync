@@ -1557,13 +1557,14 @@ async function uploadFile(file, fileType, retryCount = 0) {
                 // 先打开请求
                 xhr.open('POST', `${API_BASE_URL}/api/upload`);
                 
-                // 上传进度事件（在open之后添加，更可靠）
-                xhr.upload.addEventListener('progress', (e) => {
-                    console.log('📊 上传进度事件:', {
+                // 定义进度更新函数
+                const updateProgress = (e) => {
+                    console.log('📊 上传进度事件触发:', {
                         loaded: e.loaded,
                         total: e.total,
                         lengthComputable: e.lengthComputable,
-                        fileSize: totalSize
+                        fileSize: totalSize,
+                        timestamp: new Date().toISOString()
                     });
                     
                     // 优先使用e.total，如果不可用则使用文件大小
@@ -1578,6 +1579,25 @@ async function uploadFile(file, fileType, retryCount = 0) {
                         console.log(`📊 更新进度（部分）: ${formatFileSize(e.loaded)} 已上传`);
                         uploadProgressText.textContent = `${formatFileSize(e.loaded)} 已上传...`;
                     }
+                };
+                
+                // 尝试多种方式绑定进度事件（确保兼容性）
+                console.log('🔧 绑定上传进度事件监听器...');
+                xhr.upload.addEventListener('progress', updateProgress);
+                xhr.upload.onprogress = updateProgress; // 备用方式
+                
+                // 添加其他可能有用的事件监听器用于调试
+                xhr.upload.addEventListener('loadstart', () => {
+                    console.log('📤 上传开始');
+                });
+                xhr.upload.addEventListener('load', () => {
+                    console.log('✅ 上传完成（upload.load事件）');
+                });
+                xhr.upload.addEventListener('error', (e) => {
+                    console.error('❌ 上传错误（upload.error事件）:', e);
+                });
+                xhr.upload.addEventListener('abort', () => {
+                    console.log('⚠️ 上传中止（upload.abort事件）');
                 });
                 
                 // 请求完成
@@ -1631,8 +1651,73 @@ async function uploadFile(file, fileType, retryCount = 0) {
                     reject(new Error('AbortError'));
                 });
                 
+                // 发送请求前，再次确认事件监听器已绑定
+                console.log('📤 准备发送请求，检查事件监听器状态...');
+                console.log('  - xhr.upload.onprogress:', typeof xhr.upload.onprogress);
+                console.log('  - xhr.readyState:', xhr.readyState);
+                console.log('  - 文件大小:', totalSize, 'bytes');
+                
+                // 备用方案：基于时间的模拟进度（如果progress事件不触发）
+                let fallbackProgressInterval = null;
+                let fallbackTimeout = null;
+                const uploadStartTime = Date.now();
+                const estimatedUploadTime = Math.max(5000, Math.min(60000, totalSize / 10000)); // 估算上传时间（5秒到60秒）
+                
+                // 如果5秒后还没有任何进度更新，启动模拟进度
+                fallbackTimeout = setTimeout(() => {
+                    console.warn('⚠️ 5秒内未收到进度事件，启动模拟进度更新');
+                    let simulatedProgress = 5;
+                    fallbackProgressInterval = setInterval(() => {
+                        simulatedProgress = Math.min(95, simulatedProgress + 2); // 每次增加2%，最多到95%
+                        uploadProgressFill.style.width = simulatedProgress + '%';
+                        uploadProgressText.textContent = `${simulatedProgress}% (上传中...)`;
+                        console.log(`📊 模拟进度: ${simulatedProgress}%`);
+                    }, 500); // 每500ms更新一次
+                }, 5000);
+                
+                // 当收到真实进度事件时，清除模拟进度
+                const originalUpdateProgress = updateProgress;
+                const wrappedUpdateProgress = (e) => {
+                    if (fallbackTimeout) clearTimeout(fallbackTimeout);
+                    if (fallbackProgressInterval) {
+                        clearInterval(fallbackProgressInterval);
+                        fallbackProgressInterval = null;
+                        console.log('✅ 收到真实进度事件，停止模拟进度');
+                    }
+                    originalUpdateProgress(e);
+                };
+                
+                // 重新绑定包装后的进度函数
+                xhr.upload.removeEventListener('progress', updateProgress);
+                xhr.upload.addEventListener('progress', wrappedUpdateProgress);
+                xhr.upload.onprogress = wrappedUpdateProgress;
+                
                 // 发送请求
                 xhr.send(formData);
+                
+                // 发送后立即检查
+                console.log('📤 请求已发送，readyState:', xhr.readyState);
+                
+                // 在请求完成时清理模拟进度
+                const cleanupFallback = () => {
+                    if (fallbackTimeout) {
+                        clearTimeout(fallbackTimeout);
+                        fallbackTimeout = null;
+                    }
+                    if (fallbackProgressInterval) {
+                        clearInterval(fallbackProgressInterval);
+                        fallbackProgressInterval = null;
+                    }
+                };
+                
+                // 确保在请求完成时清理（使用新的监听器，避免覆盖之前的load事件）
+                const originalLoadHandler = xhr.onload;
+                xhr.addEventListener('load', () => {
+                    cleanupFallback();
+                    if (originalLoadHandler) originalLoadHandler();
+                });
+                xhr.addEventListener('error', cleanupFallback);
+                xhr.addEventListener('abort', cleanupFallback);
             });
             
             const elapsed = Date.now() - startTime;

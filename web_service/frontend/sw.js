@@ -1,11 +1,11 @@
 // BeatSync Service Worker
-// 版本：v1.3.14（修复上传进度显示问题）
-const CACHE_NAME = 'beatsync-v1.3.14';
+// 版本：v1.3.15（增强上传进度调试和备用方案）
+const CACHE_NAME = 'beatsync-v1.3.15';
 const STATIC_CACHE_URLS = [
   '/',
   '/index.html',
-  '/style.css?v=20251243',
-  '/script.js?v=20251243',
+  '/style.css?v=20251244',
+  '/script.js?v=20251244',
   '/favicon.svg',
   '/favicon.ico'
 ];
