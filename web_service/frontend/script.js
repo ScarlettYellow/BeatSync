@@ -1600,9 +1600,14 @@ async function uploadFile(file, fileType, retryCount = 0) {
                     console.log('⚠️ 上传中止（upload.abort事件）');
                 });
                 
+                // 在请求完成时清理模拟进度并显示100%的函数（需要在load事件中调用）
+                let cleanupFallback = null; // 稍后定义
+                
                 // 请求完成
                 xhr.addEventListener('load', () => {
-            clearTimeout(timeoutId);
+                    clearTimeout(timeoutId);
+                    // 清理模拟进度
+                    if (cleanupFallback) cleanupFallback();
                     if (xhr.status >= 200 && xhr.status < 300) {
                         try {
                             const result = JSON.parse(xhr.responseText);
@@ -1659,30 +1664,40 @@ async function uploadFile(file, fileType, retryCount = 0) {
                 
                 // 备用方案：基于时间的模拟进度（如果progress事件不触发）
                 let fallbackProgressInterval = null;
-                let fallbackTimeout = null;
+                let hasRealProgress = false; // 标记是否收到真实进度事件
                 const uploadStartTime = Date.now();
-                const estimatedUploadTime = Math.max(5000, Math.min(60000, totalSize / 10000)); // 估算上传时间（5秒到60秒）
                 
-                // 如果5秒后还没有任何进度更新，启动模拟进度
-                fallbackTimeout = setTimeout(() => {
-                    console.warn('⚠️ 5秒内未收到进度事件，启动模拟进度更新');
-                    let simulatedProgress = 5;
-                    fallbackProgressInterval = setInterval(() => {
-                        simulatedProgress = Math.min(95, simulatedProgress + 2); // 每次增加2%，最多到95%
+                // 估算上传时间（基于文件大小和网络速度）
+                // 假设平均上传速度：小文件（<10MB）约1MB/s，大文件约5MB/s
+                const estimatedSpeed = totalSize < 10 * 1024 * 1024 ? 1024 * 1024 : 5 * 1024 * 1024; // bytes/s
+                const estimatedUploadTime = Math.max(2000, Math.min(120000, totalSize / estimatedSpeed * 1000)); // 2秒到120秒
+                console.log(`📊 估算上传时间: ${(estimatedUploadTime / 1000).toFixed(1)}秒 (文件大小: ${formatFileSize(totalSize)})`);
+                
+                // 立即启动模拟进度（不等待真实进度事件）
+                console.log('📊 启动模拟进度更新（如果收到真实进度事件将自动切换）');
+                let simulatedProgress = 0;
+                const progressStep = Math.max(0.5, Math.min(2, 100 / (estimatedUploadTime / 500))); // 根据估算时间调整步长
+                fallbackProgressInterval = setInterval(() => {
+                    if (!hasRealProgress) {
+                        simulatedProgress = Math.min(95, simulatedProgress + progressStep); // 最多到95%
                         uploadProgressFill.style.width = simulatedProgress + '%';
-                        uploadProgressText.textContent = `${simulatedProgress}% (上传中...)`;
-                        console.log(`📊 模拟进度: ${simulatedProgress}%`);
-                    }, 500); // 每500ms更新一次
-                }, 5000);
+                        uploadProgressText.textContent = `${Math.round(simulatedProgress)}% (上传中...)`;
+                        if (Math.round(simulatedProgress) % 10 === 0) { // 每10%输出一次日志
+                            console.log(`📊 模拟进度: ${Math.round(simulatedProgress)}%`);
+                        }
+                    }
+                }, 500); // 每500ms更新一次
                 
-                // 当收到真实进度事件时，清除模拟进度
+                // 当收到真实进度事件时，清除模拟进度并切换到真实进度
                 const originalUpdateProgress = updateProgress;
                 const wrappedUpdateProgress = (e) => {
-                    if (fallbackTimeout) clearTimeout(fallbackTimeout);
-                    if (fallbackProgressInterval) {
-                        clearInterval(fallbackProgressInterval);
-                        fallbackProgressInterval = null;
-                        console.log('✅ 收到真实进度事件，停止模拟进度');
+                    if (!hasRealProgress) {
+                        hasRealProgress = true;
+                        if (fallbackProgressInterval) {
+                            clearInterval(fallbackProgressInterval);
+                            fallbackProgressInterval = null;
+                            console.log('✅ 收到真实进度事件，停止模拟进度，切换到真实进度');
+                        }
                     }
                     originalUpdateProgress(e);
                 };
@@ -1698,24 +1713,21 @@ async function uploadFile(file, fileType, retryCount = 0) {
                 // 发送后立即检查
                 console.log('📤 请求已发送，readyState:', xhr.readyState);
                 
-                // 在请求完成时清理模拟进度
-                const cleanupFallback = () => {
-                    if (fallbackTimeout) {
-                        clearTimeout(fallbackTimeout);
-                        fallbackTimeout = null;
-                    }
+                // 在请求完成时清理模拟进度并显示100%
+                cleanupFallback = () => {
                     if (fallbackProgressInterval) {
                         clearInterval(fallbackProgressInterval);
                         fallbackProgressInterval = null;
                     }
+                    // 如果还没有收到真实进度事件，显示100%完成
+                    if (!hasRealProgress) {
+                        console.log('📊 上传完成，显示100%进度');
+                        uploadProgressFill.style.width = '100%';
+                        uploadProgressText.textContent = '100% (上传完成)';
+                    }
                 };
                 
-                // 确保在请求完成时清理（使用新的监听器，避免覆盖之前的load事件）
-                const originalLoadHandler = xhr.onload;
-                xhr.addEventListener('load', () => {
-                    cleanupFallback();
-                    if (originalLoadHandler) originalLoadHandler();
-                });
+                // 确保在请求错误或中止时也清理
                 xhr.addEventListener('error', cleanupFallback);
                 xhr.addEventListener('abort', cleanupFallback);
             });
