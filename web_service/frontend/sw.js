@@ -1,11 +1,11 @@
 // BeatSync Service Worker
-// 版本：v1.3.20（修复App端重置按钮位置和图标显示）
-const CACHE_NAME = 'beatsync-v1.3.20';
+// 版本：v1.3.21（修复SIGKILL崩溃：删除重复的reset-btn图标定义）
+const CACHE_NAME = 'beatsync-v1.3.21';
 const STATIC_CACHE_URLS = [
   '/',
   '/index.html',
-  '/style.css?v=20251249',
-  '/script.js?v=20251249',
+  '/style.css?v=20251250',
+  '/script.js?v=20251250',
   '/favicon.svg',
   '/favicon.ico'
 ];
