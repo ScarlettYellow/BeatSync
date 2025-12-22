@@ -1271,25 +1271,45 @@ function setupFileInputs() {
 
 // 处理文件选择
 async function handleFileSelect(event, fileType) {
+    console.log('📁 handleFileSelect 被调用:', { fileType, eventType: event.type });
     const file = event.target.files[0];
-    if (!file) return;
+    if (!file) {
+        console.warn('⚠️ 未选择文件');
+        return;
+    }
+    
+    console.log('📁 选择的文件:', {
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        fileType: fileType
+    });
     
     // 验证文件格式
     const allowedExtensions = ['.mp4', '.MP4', '.mov', '.MOV', '.avi', '.AVI', '.mkv', '.MKV'];
     const fileExt = '.' + file.name.split('.').pop();
     if (!allowedExtensions.includes(fileExt)) {
+        console.error('❌ 不支持的文件格式:', fileExt);
         alert(`不支持的文件格式，支持格式: ${allowedExtensions.join(', ')}`);
         event.target.value = '';
         return;
     }
     
-    // 上传文件
-    await uploadFile(file, fileType);
+    console.log('✅ 文件格式验证通过，开始调用 uploadFile...');
+    try {
+        // 上传文件
+        await uploadFile(file, fileType);
+    } catch (error) {
+        console.error('❌ uploadFile 执行出错:', error);
+        throw error;
+    }
 }
 
 // 检查后端服务是否可用（支持渐进式超时和重试，增强浏览器兼容性）
 async function checkBackendHealth(retryCount = 0) {
+    console.log(`🏥 checkBackendHealth 被调用 (重试次数: ${retryCount})`);
     const healthUrl = `${API_BASE_URL}/api/health`;
+    console.log(`🏥 健康检查URL: ${healthUrl}`);
     const controller = new AbortController();
     
     // 检测浏览器类型
@@ -1421,14 +1441,23 @@ async function checkBackendHealth(retryCount = 0) {
 
 // 上传文件（支持重试）
 async function uploadFile(file, fileType, retryCount = 0) {
+    console.log('🚀 uploadFile 函数被调用:', {
+        fileName: file.name,
+        fileSize: file.size,
+        fileType: fileType,
+        retryCount: retryCount
+    });
+    
     const formData = new FormData();
     formData.append('file', file);
     formData.append('file_type', fileType);
     
     try {
         // 先检查后端服务是否可用
+        console.log('🔍 开始检查后端服务健康状态...');
         updateStatus(`正在检查后端服务...`, 'processing');
         const backendAvailable = await checkBackendHealth();
+        console.log('🔍 后端服务健康检查结果:', backendAvailable);
         
         if (!backendAvailable) {
             // 检测浏览器和设备类型
