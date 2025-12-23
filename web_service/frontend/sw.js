@@ -1,11 +1,11 @@
 // BeatSync Service Worker
-// 版本：v1.3.28（修复文件信息显示格式：单行显示，包含前缀，统一颜色字号）
-const CACHE_NAME = 'beatsync-v1.3.28';
+// 版本：v1.3.29（修复iOS App CSS加载：在内联CSS和备用CSS中添加文件信息样式）
+const CACHE_NAME = 'beatsync-v1.3.29';
 const STATIC_CACHE_URLS = [
   '/',
   '/index.html',
-  '/style.css?v=20251257',
-  '/script.js?v=20251257',
+  '/style.css?v=20251258',
+  '/script.js?v=20251258',
   '/favicon.svg',
   '/favicon.ico'
 ];

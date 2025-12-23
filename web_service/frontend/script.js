@@ -680,10 +680,25 @@ document.addEventListener('DOMContentLoaded', () => {
                                                 }
                                                 
                                                 .file-info {
-                                                    margin-top: 12px;
-                                                    font-size: 14px;
+                                                    margin-top: 14px !important;
+                                                    padding: 12px 16px !important;
+                                                    background-color: #F0F0F0 !important;
+                                                    border-radius: 6px !important;
+                                                    display: flex !important;
+                                                    justify-content: center !important;
+                                                    align-items: center !important;
+                                                    text-align: center !important;
+                                                }
+                                                
+                                                .file-info span {
+                                                    font-size: 14px !important;
+                                                    font-weight: 400 !important;
                                                     color: #666666 !important;
-                                                    text-align: left;
+                                                    line-height: 1.4 !important;
+                                                    max-width: 100% !important;
+                                                    word-break: break-word !important;
+                                                    overflow-wrap: break-word !important;
+                                                    word-wrap: break-word !important;
                                                 }
                                                 
                                                 .action-section {
