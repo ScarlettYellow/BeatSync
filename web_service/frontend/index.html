@@ -168,10 +168,10 @@
                         registration.installing.addEventListener('statechange', (e) => {
                             if (e.target.state === 'activated') {
                                 console.log('[PWA] Service Worker已激活，清除旧缓存');
-                                // 清除所有旧缓存（保留当前版本 beatsync-v1.3.31）
+                                // 清除所有旧缓存（保留当前版本 beatsync-v1.3.33）
                                 caches.keys().then(cacheNames => {
                                     cacheNames.forEach(cacheName => {
-                                        if (cacheName !== 'beatsync-v1.3.31') {
+                                        if (cacheName !== 'beatsync-v1.3.33') {
                                             caches.delete(cacheName);
                                         }
                                     });
