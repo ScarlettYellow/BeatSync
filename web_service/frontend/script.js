@@ -862,7 +862,37 @@ document.addEventListener('DOMContentLoaded', () => {
                                                 }
                                                 
                                                 .upload-progress-container {
-                                                    align-items: center !important;
+                                                    margin-top: 12px !important;
+                                                    max-width: 375px !important;
+                                                    margin-left: auto !important;
+                                                    margin-right: auto !important;
+                                                    display: flex !important;
+                                                    flex-direction: column !important;
+                                                    gap: 8px !important;
+                                                    align-items: flex-start !important;
+                                                }
+                                                
+                                                .upload-progress-bar {
+                                                    width: 100% !important;
+                                                    height: 10px !important;
+                                                    background: #EAEAEA !important;
+                                                    border-radius: 999px !important;
+                                                    overflow: hidden !important;
+                                                }
+                                                
+                                                .upload-progress-fill {
+                                                    width: 0% !important;
+                                                    height: 100% !important;
+                                                    background: #4CAF50 !important;
+                                                    border-radius: 999px !important;
+                                                    transition: width 0.15s ease !important;
+                                                }
+                                                
+                                                .upload-progress-text {
+                                                    text-align: left !important;
+                                                    font-size: 14px !important;
+                                                    color: #666666 !important;
+                                                    font-weight: 500 !important;
                                                 }
                                                 
                                                 .footer {

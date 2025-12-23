@@ -1,11 +1,11 @@
 // BeatSync Service Worker
-// 版本：v1.3.32（修复iOS App CSS：下载按钮居中，缩短上传进度条）
-const CACHE_NAME = 'beatsync-v1.3.32';
+// 版本：v1.3.33（修复iOS App CSS：在备用CSS中添加上传进度条max-width限制）
+const CACHE_NAME = 'beatsync-v1.3.33';
 const STATIC_CACHE_URLS = [
   '/',
   '/index.html',
-  '/style.css?v=20251261',
-  '/script.js?v=20251261',
+  '/style.css?v=20251262',
+  '/script.js?v=20251262',
   '/favicon.svg',
   '/favicon.ico'
 ];
