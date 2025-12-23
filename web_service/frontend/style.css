@@ -231,22 +231,17 @@ h1 .title-cn {
     background-color: #F0F0F0;
     border-radius: 6px;
     display: flex;
-    flex-direction: row;
+    flex-direction: column;
     justify-content: center;
     align-items: center;
-    gap: 8px;
+    gap: 4px;
     text-align: center;
-    flex-wrap: wrap;
 }
 
 .file-info span {
     font-size: 14px;
-    word-break: break-all;
-    overflow-wrap: break-word;
-    word-wrap: break-word;
-    max-width: 100%;
-    overflow: hidden;
     line-height: 1.4;
+    max-width: 100%;
 }
 
 .file-info #dance-filename,
@@ -254,6 +249,12 @@ h1 .title-cn {
     font-weight: 600;
     color: #333333;
     font-size: 15px;
+    word-break: break-word;
+    overflow-wrap: break-word;
+    word-wrap: break-word;
+    hyphens: auto;
+    display: block;
+    width: 100%;
 }
 
 .file-info #dance-size,
@@ -261,6 +262,11 @@ h1 .title-cn {
     font-weight: 400;
     color: #666666;
     font-size: 13px;
+    word-break: break-word;
+    overflow-wrap: break-word;
+    word-wrap: break-word;
+    display: block;
+    width: 100%;
 }
 
 /* 操作区域 */

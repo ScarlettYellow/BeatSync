@@ -1,11 +1,11 @@
 // BeatSync Service Worker
-// 版本：v1.3.25（调整标题字号：主标题稍小，副标题稍大）
-const CACHE_NAME = 'beatsync-v1.3.25';
+// 版本：v1.3.27（修复文件信息显示格式：垂直布局，文件名可换行）
+const CACHE_NAME = 'beatsync-v1.3.27';
 const STATIC_CACHE_URLS = [
   '/',
   '/index.html',
-  '/style.css?v=20251254',
-  '/script.js?v=20251254',
+  '/style.css?v=20251256',
+  '/script.js?v=20251256',
   '/favicon.svg',
   '/favicon.ico'
 ];
