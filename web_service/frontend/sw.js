@@ -1,11 +1,11 @@
 // BeatSync Service Worker
-// 版本：v1.3.29（修复iOS App CSS加载：在内联CSS和备用CSS中添加文件信息样式）
-const CACHE_NAME = 'beatsync-v1.3.29';
+// 版本：v1.3.30（修复iOS App CSS加载：在内联CSS中添加重置按钮图标和下载按钮样式）
+const CACHE_NAME = 'beatsync-v1.3.30';
 const STATIC_CACHE_URLS = [
   '/',
   '/index.html',
-  '/style.css?v=20251258',
-  '/script.js?v=20251258',
+  '/style.css?v=20251259',
+  '/script.js?v=20251259',
   '/favicon.svg',
   '/favicon.ico'
 ];
