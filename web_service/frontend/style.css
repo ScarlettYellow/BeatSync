@@ -444,7 +444,7 @@ h1 .title-cn {
 /* 上传进度条 */
 .upload-progress-container {
     margin-top: 12px;
-    max-width: 500px;
+    max-width: 375px;
     margin-left: auto;
     margin-right: auto;
     display: flex;
