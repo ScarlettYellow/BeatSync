@@ -1892,11 +1892,9 @@ async function uploadFile(file, fileType, retryCount = 0) {
 // 显示文件信息
 function showFileInfo(fileType, filename, size) {
     const infoDiv = document.getElementById(`${fileType}-info`);
-    const filenameSpan = document.getElementById(`${fileType}-filename`);
-    const sizeSpan = document.getElementById(`${fileType}-size`);
+    const fileinfoSpan = document.getElementById(`${fileType}-fileinfo`);
     
-    filenameSpan.textContent = filename;
-    sizeSpan.textContent = size;
+    fileinfoSpan.textContent = `文件名: ${filename} 大小: ${size}`;
     infoDiv.style.display = 'block';
 }
 
