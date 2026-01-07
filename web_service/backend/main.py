@@ -15,10 +15,11 @@ from pathlib import Path
 from datetime import datetime, timedelta
 from typing import Optional, Dict
 
-from fastapi import FastAPI, UploadFile, File, HTTPException, Form
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi import FastAPI, UploadFile, File, HTTPException, Form, Depends, Header, Request
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 # 添加项目根目录到路径
 project_root = Path(__file__).parent.parent.parent
@@ -31,6 +32,31 @@ try:
 except ImportError:
     PERFORMANCE_LOGGING_ENABLED = False
     print("WARNING: 性能日志记录器未找到，性能日志功能已禁用")
+
+# 导入订阅系统模块
+try:
+    from subscription_db import init_database, get_db_path
+    from subscription_service import (
+        is_subscription_enabled,
+        create_or_get_user,
+        verify_jwt_token,
+        check_whitelist,
+        check_download_credits,
+        consume_download_credit,
+        add_to_whitelist,
+        remove_from_whitelist,
+        get_whitelist_users,
+        get_user_subscription_info,
+        get_subscription_history,
+        get_download_history,
+        get_used_credits_stats,
+        check_daily_process_limit,
+        record_process
+    )
+    SUBSCRIPTION_AVAILABLE = True
+except ImportError as e:
+    SUBSCRIPTION_AVAILABLE = False
+    print(f"WARNING: 订阅系统模块未找到，订阅功能已禁用: {e}")
 
 app = FastAPI(title="BeatSync API", version="1.0.0")
 
@@ -66,6 +92,37 @@ OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 TASK_STATUS_FILE = project_root / "outputs" / "task_status.json"
 task_status: Dict[str, dict] = {}
 task_lock = threading.RLock()  # 使用可重入锁，避免死锁
+
+# 订阅系统认证（可选认证，允许无认证请求）
+security = HTTPBearer(auto_error=False)
+
+async def get_optional_user(
+    authorization: Optional[str] = Header(None)
+) -> Optional[str]:
+    """
+    可选的用户认证中间件
+    - 如果提供了认证信息，验证并返回 user_id
+    - 如果没有提供，返回 None（匿名用户）
+    - 如果订阅系统未启用，始终返回 None
+    """
+    if not SUBSCRIPTION_AVAILABLE or not is_subscription_enabled():
+        return None  # 订阅系统未启用，不进行认证
+    
+    if not authorization:
+        return None  # 无认证信息，匿名用户
+    
+    try:
+        # 提取 Bearer token
+        if authorization.startswith("Bearer "):
+            token = authorization.replace("Bearer ", "")
+        else:
+            token = authorization
+        
+        user_id = verify_jwt_token(token)
+        return user_id
+    except Exception as e:
+        print(f"认证异常: {e}")
+        return None  # 认证失败，视为匿名用户
 
 
 def save_task_status():
@@ -661,7 +718,8 @@ def process_video_background(task_id: str, dance_path: Path, bgm_path: Path, out
 @app.post("/api/process")
 async def process_video(
     dance_file_id: str = Form(...),
-    bgm_file_id: str = Form(...)
+    bgm_file_id: str = Form(...),
+    authorization: Optional[str] = Header(None)
 ):
     """
     提交视频处理任务（异步处理）
@@ -669,6 +727,7 @@ async def process_video(
     参数:
         dance_file_id: 原始视频文件ID
         bgm_file_id: 音源视频文件ID
+        authorization: 可选的用户Token（用于订阅系统）
     
     返回:
         task_id: 任务ID
@@ -680,6 +739,28 @@ async def process_video(
     start_time = time.time()
     print(f"INFO: [API/process] 收到处理请求 - dance_file_id: {dance_file_id}, bgm_file_id: {bgm_file_id}", file=sys.stderr, flush=True)
     sys.stderr.flush()
+    
+    # 检查每日处理次数上限（如果订阅系统启用）
+    user_id = None
+    if SUBSCRIPTION_AVAILABLE and authorization:
+        try:
+            # 提取Token（Bearer token格式）
+            token = authorization.replace("Bearer ", "").strip() if authorization.startswith("Bearer ") else authorization.strip()
+            user_id = verify_jwt_token(token)
+            
+            if user_id:
+                # 检查每日处理次数上限
+                process_check = check_daily_process_limit(user_id)
+                if not process_check.get("allowed", True):
+                    raise HTTPException(
+                        status_code=429,  # Too Many Requests
+                        detail=process_check.get("message", "今日处理次数已达上限")
+                    )
+        except HTTPException:
+            raise
+        except Exception as e:
+            print(f"WARNING: 检查每日处理次数上限时出错: {e}", file=sys.stderr, flush=True)
+            # 如果检查失败，继续处理（降级处理）
     
     try:
         # 查找文件（使用更精确的路径，避免glob扫描大量文件）
@@ -730,6 +811,14 @@ async def process_video(
         output_dir.mkdir(parents=True, exist_ok=True)
         print(f"INFO: [步骤2] 创建输出目录完成 (耗时{time.time()-step_time:.3f}s): {output_dir}", file=sys.stderr, flush=True)
         sys.stderr.flush()
+        
+        # 记录处理次数（如果订阅系统启用且有用户ID）
+        if SUBSCRIPTION_AVAILABLE and user_id:
+            try:
+                record_process(user_id, task_id)
+            except Exception as record_error:
+                print(f"WARNING: 记录处理次数失败: {record_error}", file=sys.stderr, flush=True)
+                # 记录失败不影响处理流程
         
         # 初始化任务状态（快速操作，使用锁但快速释放）
         step_time = time.time()
@@ -929,18 +1018,24 @@ async def preview_result(task_id: str, version: Optional[str] = None):
 
 
 @app.get("/api/download/{task_id}")
-async def download_result(task_id: str, version: Optional[str] = None):
+async def download_result(
+    request: Request,
+    task_id: str,
+    version: Optional[str] = None,
+    user_id: Optional[str] = Depends(get_optional_user)
+):
     """
-    下载处理结果
+    下载处理结果（零耦合设计：保持向后兼容）
     
     参数:
         task_id: 任务ID
         version: 版本类型 ("modular" 或 "v2")，如果不指定则下载modular版本
+        user_id: 可选的用户ID（通过认证中间件获取）
     
     返回:
         视频文件（二进制流）
     """
-    # 查找输出文件
+    # 1. 首先执行现有的文件查找逻辑（保持不变，确保向后兼容）
     output_dir = OUTPUT_DIR / task_id
     if not output_dir.exists():
         raise HTTPException(status_code=404, detail="任务不存在")
@@ -972,7 +1067,55 @@ async def download_result(task_id: str, version: Optional[str] = None):
     else:
         raise HTTPException(status_code=404, detail="输出文件不存在")
     
-    # 使用流式响应，支持断点续传，提高下载速度
+    # 2. 订阅检查（仅在启用且用户已认证时，零耦合设计）
+    if SUBSCRIPTION_AVAILABLE and is_subscription_enabled() and user_id:
+        try:
+            # 检查白名单
+            if check_whitelist(user_id):
+                # 白名单用户，直接允许下载，不消费次数
+                # 获取 IP 和 User Agent（如果可用）
+                ip_address = None
+                user_agent = None
+                try:
+                    if request and hasattr(request, 'client') and request.client:
+                        ip_address = request.client.host
+                    if request and hasattr(request, 'headers'):
+                        user_agent = request.headers.get("user-agent")
+                except:
+                    pass
+                consume_download_credit(user_id, task_id, version or "modular", ip_address, user_agent)
+            else:
+                # 检查下载次数
+                credits_check = check_download_credits(user_id)
+                if not credits_check["can_download"]:
+                    raise HTTPException(
+                        status_code=403,
+                        detail={
+                            "error": "insufficient_credits",
+                            "message": "下载次数不足，请购买订阅或下载次数",
+                            "available_credits": credits_check["total_remaining"]
+                        }
+                    )
+                # 消费下载次数
+                ip_address = None
+                user_agent = None
+                try:
+                    if request and hasattr(request, 'client') and request.client:
+                        ip_address = request.client.host
+                    if request and hasattr(request, 'headers'):
+                        user_agent = request.headers.get("user-agent")
+                except:
+                    pass
+                consume_download_credit(user_id, task_id, version or "modular", ip_address, user_agent)
+        except HTTPException:
+            # 重新抛出 HTTP 异常（如次数不足）
+            raise
+        except Exception as e:
+            # 订阅系统异常，优雅降级到匿名模式
+            print(f"订阅系统异常，降级到匿名模式: {e}")
+            # 继续执行下载，不阻止用户
+    
+    # 3. 返回文件（现有逻辑，保持不变）
     return FileResponse(
         str(output_file),
         media_type='video/mp4',
@@ -982,6 +1125,620 @@ async def download_result(task_id: str, version: Optional[str] = None):
             "Content-Disposition": f'attachment; filename="{filename}"'  # 确保浏览器下载而不是播放
         }
     )
+
+
+# ==================== 订阅系统 API ====================
+
+# 订阅产品列表端点（移到条件块外，确保始终可用）
+@app.get("/api/subscription/products")
+async def get_subscription_products():
+    """获取可用订阅产品列表"""
+    # 如果订阅系统未启用，返回空列表
+    if not SUBSCRIPTION_AVAILABLE:
+        return {
+            "products": [],
+            "count": 0,
+            "message": "订阅系统未启用"
+        }
+    
+    if not is_subscription_enabled():
+        return {
+            "products": [],
+            "count": 0,
+            "message": "订阅系统未启用"
+        }
+    
+    try:
+        from payment_service import PRODUCT_PRICES, PRODUCT_CREDITS
+        
+        products = []
+        
+        # 订阅产品
+        subscription_products = [
+            {
+                "id": "basic_monthly",
+                "type": "subscription",
+                "displayName": "基础版",
+                "description": "公测期特价：4.8元/月，每月20次下载，每日10次处理",
+                "price": PRODUCT_PRICES.get("basic_monthly", 4.80),
+                "displayPrice": f"¥{PRODUCT_PRICES.get('basic_monthly', 4.80)}/月",
+                "credits": PRODUCT_CREDITS.get("basic_monthly", 20),
+                "period": "monthly"
+            },
+            {
+                "id": "premium_monthly",
+                "type": "subscription",
+                "displayName": "高级版",
+                "description": "公测期特价：19.9元/月，每月100次下载，每日20次处理",
+                "price": PRODUCT_PRICES.get("premium_monthly", 19.90),
+                "displayPrice": f"¥{PRODUCT_PRICES.get('premium_monthly', 19.90)}/月",
+                "credits": PRODUCT_CREDITS.get("premium_monthly", 100),
+                "period": "monthly"
+            }
+        ]
+        
+        # 一次性购买产品
+        purchase_products = [
+            {
+                "id": "pack_10",
+                "type": "purchase",
+                "displayName": "10次下载包",
+                "description": "一次性购买10次下载，每日10次处理，有效期3个月",
+                "price": PRODUCT_PRICES.get("pack_10", 5.00),
+                "displayPrice": f"¥{PRODUCT_PRICES.get('pack_10', 5.00)}",
+                "credits": PRODUCT_CREDITS.get("pack_10", 10),
+                "period": None
+            },
+            {
+                "id": "pack_20",
+                "type": "purchase",
+                "displayName": "20次下载包",
+                "description": "一次性购买20次下载，每日10次处理，有效期3个月",
+                "price": PRODUCT_PRICES.get("pack_20", 9.00),
+                "displayPrice": f"¥{PRODUCT_PRICES.get('pack_20', 9.00)}",
+                "credits": PRODUCT_CREDITS.get("pack_20", 20),
+                "period": None
+            }
+        ]
+        
+        products = subscription_products + purchase_products
+        
+        return {
+            "products": products,
+            "count": len(products)
+        }
+    except Exception as e:
+        print(f"ERROR: 获取产品列表失败: {e}")
+        import traceback
+        traceback.print_exc()
+        return {
+            "products": [],
+            "count": 0,
+            "error": str(e)
+        }
+
+# 用户认证端点（移到条件块外，确保始终可用）
+@app.post("/api/auth/register")
+async def register_user(
+    device_id: Optional[str] = Form(None),
+    email: Optional[str] = Form(None),
+    phone: Optional[str] = Form(None)
+):
+    """注册新用户"""
+    if not SUBSCRIPTION_AVAILABLE:
+        return JSONResponse(
+            status_code=503,
+            content={"error": "订阅系统未启用"}
+        )
+    
+    if not is_subscription_enabled():
+        return JSONResponse(
+            status_code=503,
+            content={"error": "订阅系统未启用"}
+        )
+    
+    result = create_or_get_user(device_id=device_id, email=email, phone=phone)
+    return result
+
+if SUBSCRIPTION_AVAILABLE:
+    
+    @app.post("/api/auth/login")
+    async def login_user(
+        user_id: Optional[str] = Form(None),
+        device_id: Optional[str] = Form(None)
+    ):
+        """登录用户"""
+        if not is_subscription_enabled():
+            return JSONResponse(
+                status_code=503,
+                content={"error": "订阅系统未启用"}
+            )
+        
+        result = create_or_get_user(device_id=device_id)
+        if user_id:
+            # 如果提供了 user_id，验证并生成新 token
+            from subscription_service import generate_jwt_token
+            result = {
+                "user_id": user_id,
+                "token": generate_jwt_token(user_id)
+            }
+        return result
+    
+    @app.get("/api/subscription/status")
+    async def get_subscription_status(user_id: Optional[str] = Depends(get_optional_user)):
+        """获取当前订阅状态"""
+        if not is_subscription_enabled():
+            return JSONResponse(
+                status_code=503,
+                content={"error": "订阅系统未启用"}
+            )
+        
+        if not user_id:
+            return {
+                "is_whitelisted": False,
+                "subscription": None,
+                "download_credits": None,
+                "free_trial": None
+            }
+        
+        # 检查白名单
+        is_whitelisted = check_whitelist(user_id)
+        
+        # 获取下载次数信息
+        credits_info = check_download_credits(user_id)
+        
+        # 获取订阅信息
+        subscription_info = get_user_subscription_info(user_id)
+        
+        # 获取已使用次数统计
+        used_stats = get_used_credits_stats(user_id)
+        
+        return {
+            "is_whitelisted": is_whitelisted,
+            "hasActiveSubscription": subscription_info is not None,
+            "subscription": subscription_info,
+            "download_credits": {
+                "total": credits_info.get("total_remaining", 0),
+                "remaining": credits_info.get("total_remaining", 0),
+                "available_credits": credits_info.get("available_credits", {})
+            },
+            "free_trial": {
+                "used": used_stats.get("free_trial", {}).get("used", 0),
+                "total": used_stats.get("free_trial", {}).get("total", 0),
+                "remaining": credits_info.get("available_credits", {}).get("free_trial", 0)
+            },
+            "credits": {
+                "subscription": {
+                    "used": used_stats.get("subscription", {}).get("used", 0),
+                    "total": used_stats.get("subscription", {}).get("total", 0),
+                    "remaining": credits_info.get("available_credits", {}).get("subscription", 0)
+                },
+                "purchase": {
+                    "used": used_stats.get("purchase", {}).get("used", 0),
+                    "total": used_stats.get("purchase", {}).get("total", 0),
+                    "remaining": credits_info.get("available_credits", {}).get("purchased", 0)
+                }
+            }
+        }
+    
+    # 下载次数管理
+    @app.get("/api/credits/check")
+    async def check_credits(user_id: Optional[str] = Depends(get_optional_user)):
+        """检查是否有可用下载次数"""
+        if not is_subscription_enabled():
+            return {
+                "is_whitelisted": False,
+                "can_download": True,
+                "available_credits": {"subscription": 0, "purchased": 0, "free_trial": 0},
+                "total_remaining": 999999  # 使用大数字代替 float('inf')
+            }
+        
+        if not user_id:
+            # 匿名用户，允许下载（向后兼容）
+            return {
+                "is_whitelisted": False,
+                "can_download": True,
+                "available_credits": {"subscription": 0, "purchased": 0, "free_trial": 0},
+                "total_remaining": 999999  # 使用大数字代替 float('inf')
+            }
+        
+        result = check_download_credits(user_id)
+        # 将 float('inf') 转换为大数字
+        if result.get("total_remaining") == float('inf'):
+            result["total_remaining"] = 999999
+        return result
+    
+    @app.post("/api/credits/consume")
+    async def consume_credits(
+        task_id: str = Form(...),
+        version: str = Form(...),
+        user_id: Optional[str] = Depends(get_optional_user)
+    ):
+        """消费下载次数"""
+        if not is_subscription_enabled():
+            return {"success": True, "remaining": float('inf')}
+        
+        if not user_id:
+            return {"success": True, "remaining": float('inf')}
+        
+        result = consume_download_credit(user_id, task_id, version)
+        return {
+            "success": result["remaining"] != 0,
+            "remaining": result["remaining"],
+            "credit_type": result["credit_type"]
+        }
+    
+    # 白名单管理（管理员功能）
+    ADMIN_TOKEN = os.getenv("ADMIN_TOKEN", None)
+    
+    def verify_admin_token(authorization: Optional[str] = Header(None)) -> bool:
+        """验证管理员Token"""
+        if not ADMIN_TOKEN:
+            return False
+        if not authorization:
+            return False
+        token = authorization.replace("Bearer ", "") if authorization.startswith("Bearer ") else authorization
+        return token == ADMIN_TOKEN
+    
+    @app.get("/api/admin/whitelist")
+    async def get_whitelist_admin(
+        page: int = 1,
+        limit: int = 20,
+        search: Optional[str] = None,
+        is_admin: bool = Depends(verify_admin_token)
+    ):
+        """获取白名单列表（需要管理员权限）"""
+        if not is_admin:
+            raise HTTPException(status_code=403, detail="管理员权限 required")
+        
+        return get_whitelist_users(page=page, limit=limit, search=search)
+    
+    @app.post("/api/admin/whitelist/add")
+    async def add_whitelist_admin(
+        user_id: str = Form(...),
+        reason: Optional[str] = Form(None),
+        is_admin: bool = Depends(verify_admin_token)
+    ):
+        """添加用户到白名单（需要管理员权限）"""
+        if not is_admin:
+            raise HTTPException(status_code=403, detail="管理员权限 required")
+        
+        success = add_to_whitelist(user_id, "admin", reason)
+        if success:
+            return {"success": True, "message": "用户已添加到白名单", "user_id": user_id}
+        else:
+            return JSONResponse(
+                status_code=400,
+                content={"success": False, "message": "用户已在白名单中或添加失败", "user_id": user_id}
+            )
+    
+    @app.delete("/api/admin/whitelist/{user_id}")
+    async def remove_whitelist_admin(
+        user_id: str,
+        is_admin: bool = Depends(verify_admin_token)
+    ):
+        """从白名单中删除用户（需要管理员权限）"""
+        if not is_admin:
+            raise HTTPException(status_code=403, detail="管理员权限 required")
+        
+        success = remove_from_whitelist(user_id)
+        if success:
+            return {"success": True, "message": "用户已从白名单中移除", "user_id": user_id}
+        else:
+            return JSONResponse(
+                status_code=404,
+                content={"success": False, "message": "用户不在白名单中", "user_id": user_id}
+            )
+    
+    @app.get("/api/admin/whitelist/check/{user_id}")
+    async def check_whitelist_admin(
+        user_id: str,
+        is_admin: bool = Depends(verify_admin_token)
+    ):
+        """检查用户是否在白名单中（需要管理员权限）"""
+        if not is_admin:
+            raise HTTPException(status_code=403, detail="管理员权限 required")
+        
+        is_whitelisted = check_whitelist(user_id)
+        return {
+            "is_whitelisted": is_whitelisted,
+            "user_id": user_id
+        }
+    
+    # iOS 收据验证
+    @app.get("/api/subscription/history")
+    async def get_subscription_history_api(
+        page: int = 1,
+        limit: int = 20,
+        user_id: Optional[str] = Depends(get_optional_user)
+    ):
+        """获取用户订阅历史"""
+        if not is_subscription_enabled():
+            return JSONResponse(
+                status_code=503,
+                content={"error": "订阅系统未启用"}
+            )
+        
+        if not user_id:
+            return JSONResponse(
+                status_code=401,
+                content={"error": "未登录"}
+            )
+        
+        return get_subscription_history(user_id, page=page, limit=limit)
+    
+    @app.get("/api/downloads/history")
+    async def get_download_history_api(
+        page: int = 1,
+        limit: int = 20,
+        user_id: Optional[str] = Depends(get_optional_user)
+    ):
+        """获取用户下载记录"""
+        if not is_subscription_enabled():
+            return JSONResponse(
+                status_code=503,
+                content={"error": "订阅系统未启用"}
+            )
+        
+        if not user_id:
+            return JSONResponse(
+                status_code=401,
+                content={"error": "未登录"}
+            )
+        
+        return get_download_history(user_id, page=page, limit=limit)
+    
+    # Web 支付相关 API
+    try:
+        from payment_service import (
+            create_payment_order,
+            verify_wechat_payment,
+            verify_alipay_payment,
+            update_payment_status,
+            get_payment_status
+        )
+        PAYMENT_AVAILABLE = True
+    except ImportError:
+        PAYMENT_AVAILABLE = False
+        print("WARNING: 支付服务模块未找到，Web 支付功能已禁用")
+    
+    if PAYMENT_AVAILABLE:
+        @app.post("/api/payment/create")
+        async def create_payment(
+            product_id: str = Form(...),
+            payment_method: str = Form("wechat"),
+            user_id: Optional[str] = Depends(get_optional_user)
+        ):
+            """创建支付订单"""
+            if not is_subscription_enabled():
+                return JSONResponse(
+                    status_code=503,
+                    content={"error": "订阅系统未启用"}
+                )
+            
+            if not user_id:
+                return JSONResponse(
+                    status_code=401,
+                    content={"error": "需要用户认证"}
+                )
+            
+            if payment_method not in ["wechat", "alipay"]:
+                return JSONResponse(
+                    status_code=400,
+                    content={"error": "不支持的支付方式"}
+                )
+            
+            result = create_payment_order(user_id, product_id, payment_method)
+            if result:
+                return result
+            else:
+                return JSONResponse(
+                    status_code=400,
+                    content={"error": "创建支付订单失败"}
+                )
+        
+        @app.post("/api/payment/callback/wechat")
+        async def wechat_payment_callback(request: Request):
+            """微信支付回调"""
+            if not is_subscription_enabled():
+                return JSONResponse(
+                    status_code=503,
+                    content={"error": "订阅系统未启用"}
+                )
+            
+            try:
+                # 获取回调数据（微信支付使用 XML 格式）
+                body = await request.body()
+                # 这里应该解析 XML 并验证签名
+                # 临时实现：假设是 JSON 格式
+                try:
+                    callback_data = await request.json()
+                except:
+                    # 如果是 XML，需要解析
+                    import xml.etree.ElementTree as ET
+                    root = ET.fromstring(body.decode('utf-8'))
+                    callback_data = {child.tag: child.text for child in root}
+                
+                # 验证支付
+                result = verify_wechat_payment(callback_data)
+                if result and result.get("success"):
+                    # 更新支付状态
+                    update_payment_status(
+                        result["order_id"],
+                        result["status"],
+                        result.get("transaction_id")
+                    )
+                    # 返回微信支付要求的响应格式（XML）
+                    return Response(
+                        content='<xml><return_code><![CDATA[SUCCESS]]></return_code><return_msg><![CDATA[OK]]></return_msg></xml>',
+                        media_type="application/xml"
+                    )
+                else:
+                    return JSONResponse(
+                        status_code=400,
+                        content={"error": "支付验证失败"}
+                    )
+            except Exception as e:
+                print(f"微信支付回调处理失败: {e}")
+                return JSONResponse(
+                    status_code=500,
+                    content={"error": "处理支付回调失败"}
+                )
+        
+        @app.post("/api/payment/callback/alipay")
+        async def alipay_payment_callback(request: Request):
+            """支付宝支付回调"""
+            if not is_subscription_enabled():
+                return JSONResponse(
+                    status_code=503,
+                    content={"error": "订阅系统未启用"}
+                )
+            
+            try:
+                # 获取回调数据（支付宝使用表单数据）
+                form_data = await request.form()
+                callback_data = dict(form_data)
+                
+                # 验证支付
+                result = verify_alipay_payment(callback_data)
+                if result and result.get("success"):
+                    # 更新支付状态
+                    update_payment_status(
+                        result["order_id"],
+                        result["status"],
+                        result.get("transaction_id")
+                    )
+                    # 返回支付宝要求的响应格式
+                    return Response(content="success")
+                else:
+                    return JSONResponse(
+                        status_code=400,
+                        content={"error": "支付验证失败"}
+                    )
+            except Exception as e:
+                print(f"支付宝支付回调处理失败: {e}")
+                return JSONResponse(
+                    status_code=500,
+                    content={"error": "处理支付回调失败"}
+                )
+        
+        @app.get("/api/payment/status/{order_id}")
+        async def get_payment_status_api(
+            order_id: str,
+            user_id: Optional[str] = Depends(get_optional_user)
+        ):
+            """查询支付订单状态"""
+            if not is_subscription_enabled():
+                return JSONResponse(
+                    status_code=503,
+                    content={"error": "订阅系统未启用"}
+                )
+            
+            if not user_id:
+                return JSONResponse(
+                    status_code=401,
+                    content={"error": "需要用户认证"}
+                )
+            
+            result = get_payment_status(order_id)
+            if result:
+                # 验证订单属于当前用户
+                if result["user_id"] != user_id:
+                    return JSONResponse(
+                        status_code=403,
+                        content={"error": "无权访问此订单"}
+                    )
+                return result
+            else:
+                return JSONResponse(
+                    status_code=404,
+                    content={"error": "订单不存在"}
+                )
+    
+    @app.post("/api/subscription/verify-receipt")
+    async def verify_receipt(
+        transaction_id: str = Form(...),
+        product_id: str = Form(...),
+        receipt_data: str = Form(...),
+        platform: str = Form("ios"),
+        user_id: Optional[str] = Depends(get_optional_user)
+    ):
+        """验证 iOS 收据（StoreKit 2）"""
+        if not is_subscription_enabled():
+            return JSONResponse(
+                status_code=503,
+                content={"error": "订阅系统未启用"}
+            )
+        
+        if not user_id:
+            return JSONResponse(
+                status_code=401,
+                content={"error": "需要用户认证"}
+            )
+        
+        try:
+            from subscription_receipt_verification import (
+                verify_ios_receipt,
+                parse_transaction_from_receipt,
+                save_subscription_to_database
+            )
+            
+            # 验证收据（StoreKit 2 的收据数据格式）
+            # 注意：StoreKit 2 使用 Transaction 对象，不是传统的收据
+            # 这里我们直接使用收到的 receipt_data（应该是 JSON 编码的 Transaction 信息）
+            import json
+            import base64
+            
+            try:
+                # 尝试解码 receipt_data
+                receipt_json = json.loads(base64.b64decode(receipt_data).decode('utf-8'))
+                
+                # 构造交易信息
+                transaction_info = {
+                    "transaction_id": transaction_id,
+                    "product_id": product_id,
+                    "purchase_date_ms": int(receipt_json.get("purchaseDate", 0)),
+                    "expires_date_ms": receipt_json.get("expirationDate", 0) if receipt_json.get("expirationDate") else None,
+                    "is_trial_period": False,
+                    "is_in_intro_offer_period": False
+                }
+                
+                # 保存订阅到数据库
+                success = save_subscription_to_database(user_id, transaction_info, product_id)
+                
+                if success:
+                    return {
+                        "success": True,
+                        "message": "收据验证成功",
+                        "transaction_id": transaction_id,
+                        "product_id": product_id
+                    }
+                else:
+                    return JSONResponse(
+                        status_code=500,
+                        content={
+                            "success": False,
+                            "message": "保存订阅信息失败"
+                        }
+                    )
+            except Exception as e:
+                print(f"处理收据数据失败: {e}")
+                return JSONResponse(
+                    status_code=400,
+                    content={
+                        "success": False,
+                        "message": f"收据数据格式错误: {str(e)}"
+                    }
+                )
+        except Exception as e:
+            print(f"收据验证异常: {e}")
+            return JSONResponse(
+                status_code=500,
+                content={
+                    "success": False,
+                    "message": f"收据验证失败: {str(e)}"
+                }
+            )
 
 
 @app.get("/api/health")
@@ -997,10 +1754,19 @@ async def health_check():
     }
 
 
-# 启动时清理旧文件
+# 启动时初始化订阅系统数据库
 @app.on_event("startup")
 async def startup_event():
     """启动时执行初始化操作（快速启动，清理操作在后台执行）"""
+    # 初始化订阅系统数据库（如果启用）
+    if SUBSCRIPTION_AVAILABLE:
+        try:
+            init_database()
+            print("✅ 订阅系统数据库初始化成功")
+        except Exception as e:
+            print(f"WARNING: 订阅系统数据库初始化失败: {e}")
+            print("订阅功能将不可用，但现有功能不受影响")
+    
     # 加载任务状态（必须同步执行，但通常很快）
     load_task_status()
     
