@@ -1503,6 +1503,41 @@ if SUBSCRIPTION_AVAILABLE:
         print("WARNING: 支付服务模块未找到，Web 支付功能已禁用")
     
     if PAYMENT_AVAILABLE:
+        # 订阅购买端点（前端调用）
+        @app.post("/api/subscription/purchase")
+        async def purchase_subscription(
+            product_id: str = Form(...),
+            payment_method: str = Form("wechat"),
+            user_id: Optional[str] = Depends(get_optional_user)
+        ):
+            """购买订阅或下载次数（订阅系统专用端点）"""
+            if not is_subscription_enabled():
+                return JSONResponse(
+                    status_code=503,
+                    content={"error": "订阅系统未启用"}
+                )
+            
+            if not user_id:
+                return JSONResponse(
+                    status_code=401,
+                    content={"error": "需要用户认证"}
+                )
+            
+            if payment_method not in ["wechat", "alipay"]:
+                return JSONResponse(
+                    status_code=400,
+                    content={"error": "不支持的支付方式"}
+                )
+            
+            result = create_payment_order(user_id, product_id, payment_method)
+            if result:
+                return result
+            else:
+                return JSONResponse(
+                    status_code=400,
+                    content={"error": "创建支付订单失败"}
+                )
+        
         @app.post("/api/payment/create")
         async def create_payment(
             product_id: str = Form(...),
