@@ -1,3 +1,14 @@
+/*
+ * SubscriptionPlugin.swift - StoreKit 2 订阅管理插件
+ * 
+ * 功能：
+ * - 查询可用订阅产品
+ * - 购买订阅
+ * - 验证收据（与后端API集成）
+ * - 查询订阅状态
+ * - 恢复购买
+ */
+
 import Foundation
 import Capacitor
 import StoreKit
@@ -15,22 +26,32 @@ import StoreKit
 @objc(SubscriptionPlugin)
 public class SubscriptionPlugin: CAPPlugin {
     
+    // 确保插件ID正确
+    public override func getId() -> String {
+        return "SubscriptionPlugin"
+    }
+    
+    // 添加初始化日志，用于调试
+    public override init() {
+        super.init()
+        print("📱 [SubscriptionPlugin] 插件已初始化")
+    }
+    
     // StoreKit 2 产品ID配置
     // 这些ID需要在 App Store Connect 中配置
+    // 公测期套餐配置
     private let productIds: [String: String] = [
-        "basic_monthly": "com.beatsync.subscription.basic.monthly",
-        "basic_yearly": "com.beatsync.subscription.basic.yearly",
-        "premium_monthly": "com.beatsync.subscription.premium.monthly",
-        "premium_yearly": "com.beatsync.subscription.premium.yearly",
-        "pack_10": "com.beatsync.pack.10",
-        "pack_20": "com.beatsync.pack.20",
-        "pack_50": "com.beatsync.pack.50"
+        "basic_monthly": "com.beatsync.public_beta.subscription.basic.monthly",
+        "premium_monthly": "com.beatsync.public_beta.subscription.premium.monthly",
+        "pack_10": "com.beatsync.public_beta.subscription.pack.10",
+        "pack_20": "com.beatsync.public_beta.subscription.pack.20"
     ]
     
     // 后端API地址（从配置读取或使用默认值）
     private var apiBaseURL: String {
-        // 可以从 capacitor.config.json 读取
-        return "http://localhost:8000"
+        // 默认值：生产环境
+        // 注意：实际应该从 capacitor.config.json 读取，这里简化处理
+        return "https://beatsync.site"
     }
     
     // MARK: - 查询可用产品
@@ -47,7 +68,7 @@ public class SubscriptionPlugin: CAPPlugin {
                     productInfo["displayName"] = product.displayName
                     productInfo["description"] = product.description
                     productInfo["price"] = product.price.description
-                    productInfo["priceLocale"] = product.priceLocale?.identifier ?? "en_US"
+                    productInfo["displayPrice"] = product.displayPrice  // StoreKit 2 使用 displayPrice 获取格式化价格
                     productInfo["subscriptionGroupID"] = product.subscription?.subscriptionGroupID
                     
                     // 查找对应的产品类型
@@ -248,13 +269,21 @@ public class SubscriptionPlugin: CAPPlugin {
                 }
                 
                 // 同时从后端获取订阅状态（包含下载次数等信息）
-                if let backendStatus = try? await getBackendSubscriptionStatus() {
-                    call.resolve([
-                        "localStatus": statuses,
-                        "backendStatus": backendStatus,
-                        "hasActiveSubscription": !statuses.isEmpty
-                    ])
-                } else {
+                do {
+                    if let backendStatus = try await getBackendSubscriptionStatus() {
+                        call.resolve([
+                            "localStatus": statuses,
+                            "backendStatus": backendStatus,
+                            "hasActiveSubscription": !statuses.isEmpty
+                        ])
+                    } else {
+                        call.resolve([
+                            "localStatus": statuses,
+                            "hasActiveSubscription": !statuses.isEmpty
+                        ])
+                    }
+                } catch {
+                    // 后端状态获取失败，只返回本地状态
                     call.resolve([
                         "localStatus": statuses,
                         "hasActiveSubscription": !statuses.isEmpty

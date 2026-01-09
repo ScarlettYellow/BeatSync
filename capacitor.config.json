@@ -3,10 +3,9 @@
   "appName": "BeatSync",
   "webDir": "web_service/frontend",
   "server": {
-    "url": "https://beatsync.site",
-    "cleartext": false,
     "allowNavigation": [
-      "beatsync.site"
+      "beatsync.site",
+      "app.beatsync.site"
     ]
   }
 }

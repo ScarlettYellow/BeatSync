@@ -3,6 +3,13 @@ fastapi==0.104.1
 uvicorn[standard]==0.24.0
 python-multipart==0.0.6
 
+# 订阅系统依赖
+PyJWT==2.8.0
+
+# 支付系统依赖
+wechatpay-python>=1.2.0
+alipay-sdk-python>=3.7.0
+
 # BeatSync处理程序依赖
 numpy>=1.21.0
 soundfile>=0.10.0

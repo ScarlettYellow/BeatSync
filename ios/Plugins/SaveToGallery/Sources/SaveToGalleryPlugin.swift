@@ -75,3 +75,12 @@ public class SaveToGalleryPlugin: CAPPlugin {
 
 
 
+
+
+
+
+
+
+
+
+

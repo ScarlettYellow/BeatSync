@@ -145,3 +145,12 @@ sudo journalctl -u beatsync -f
 
 
 
+
+
+
+
+
+
+
+
+

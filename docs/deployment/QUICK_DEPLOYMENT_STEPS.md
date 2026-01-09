@@ -276,3 +276,12 @@ sudo journalctl -u beatsync -n 50
 
 
 
+
+
+
+
+
+
+
+
+

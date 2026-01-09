@@ -1,0 +1,85 @@
+{
+  "identifier" : "Products",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+    {
+      "displayPrice" : "4.80",
+      "familyShareable" : false,
+      "identifier" : "basic_monthly",
+      "localizations" : [
+        {
+          "description" : "公测期基础版月付 - 每月20次高清下载，每日处理次数上限10次",
+          "displayName" : "基础版月付",
+          "locale" : "zh_CN"
+        }
+      ],
+      "productID" : "com.beatsync.public_beta.subscription.basic.monthly",
+      "referenceName" : "基础版月付",
+      "type" : "SUBSCRIPTION"
+    },
+    {
+      "displayPrice" : "19.90",
+      "familyShareable" : false,
+      "identifier" : "premium_monthly",
+      "localizations" : [
+        {
+          "description" : "公测期高级版月付 - 每月100次高清下载，每日处理次数上限20次",
+          "displayName" : "高级版月付",
+          "locale" : "zh_CN"
+        }
+      ],
+      "productID" : "com.beatsync.public_beta.subscription.premium.monthly",
+      "referenceName" : "高级版月付",
+      "type" : "SUBSCRIPTION"
+    },
+    {
+      "displayPrice" : "5.00",
+      "familyShareable" : false,
+      "identifier" : "pack_10",
+      "localizations" : [
+        {
+          "description" : "公测期下载次数加油包（10次） - 可高清下载10次，每日处理次数上限10次，有效期3个月",
+          "displayName" : "10次下载包",
+          "locale" : "zh_CN"
+        }
+      ],
+      "productID" : "com.beatsync.public_beta.subscription.pack.10",
+      "referenceName" : "10次下载包",
+      "type" : "CONSUMABLE"
+    },
+    {
+      "displayPrice" : "9.00",
+      "familyShareable" : false,
+      "identifier" : "pack_20",
+      "localizations" : [
+        {
+          "description" : "公测期下载次数加油包（20次） - 可高清下载20次，每日处理次数上限10次，有效期3个月",
+          "displayName" : "20次下载包",
+          "locale" : "zh_CN"
+        }
+      ],
+      "productID" : "com.beatsync.public_beta.subscription.pack.20",
+      "referenceName" : "20次下载包",
+      "type" : "CONSUMABLE"
+    }
+  ],
+  "subscriptionGroups" : [
+    {
+      "id" : "21482000",
+      "localizations" : [
+
+      ],
+      "name" : "BeatSync Subscriptions",
+      "subscriptions" : [
+        "com.beatsync.public_beta.subscription.basic.monthly",
+        "com.beatsync.public_beta.subscription.premium.monthly"
+      ]
+    }
+  ],
+  "version" : {
+    "major" : 3,
+    "minor" : 0
+  }
+}

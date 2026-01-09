@@ -1,0 +1,102 @@
+{
+  "products": [
+    {
+      "product_id": "com.beatsync.subscription.basic.monthly",
+      "type": "auto-renewable-subscription",
+      "name_zh": "基础版月付",
+      "name_en": "Basic Monthly",
+      "price_cny": 15,
+      "description_zh": "每月50次高清下载，免费处理无限次",
+      "description_en": "50 HD downloads per month, unlimited processing",
+      "download_credits": 50,
+      "subscription_group": "basic",
+      "duration": "monthly"
+    },
+    {
+      "product_id": "com.beatsync.subscription.basic.yearly",
+      "type": "auto-renewable-subscription",
+      "name_zh": "基础版年付",
+      "name_en": "Basic Yearly",
+      "price_cny": 99,
+      "description_zh": "每年600次高清下载，免费处理无限次",
+      "description_en": "600 HD downloads per year, unlimited processing",
+      "download_credits": 600,
+      "subscription_group": "basic",
+      "duration": "yearly"
+    },
+    {
+      "product_id": "com.beatsync.subscription.premium.monthly",
+      "type": "auto-renewable-subscription",
+      "name_zh": "高级版月付",
+      "name_en": "Premium Monthly",
+      "price_cny": 69,
+      "description_zh": "每月1000次高清下载，免费处理无限次",
+      "description_en": "1000 HD downloads per month, unlimited processing",
+      "download_credits": 1000,
+      "subscription_group": "premium",
+      "duration": "monthly"
+    },
+    {
+      "product_id": "com.beatsync.subscription.premium.yearly",
+      "type": "auto-renewable-subscription",
+      "name_zh": "高级版年付",
+      "name_en": "Premium Yearly",
+      "price_cny": 499,
+      "description_zh": "每年12000次高清下载，免费处理无限次",
+      "description_en": "12000 HD downloads per year, unlimited processing",
+      "download_credits": 12000,
+      "subscription_group": "premium",
+      "duration": "yearly"
+    },
+    {
+      "product_id": "com.beatsync.pack.10",
+      "type": "non-consumable",
+      "name_zh": "10次下载包",
+      "name_en": "10 Downloads Pack",
+      "price_cny": 5,
+      "description_zh": "一次性购买，10次高清下载",
+      "description_en": "One-time purchase, 10 HD downloads",
+      "download_credits": 10
+    },
+    {
+      "product_id": "com.beatsync.pack.20",
+      "type": "non-consumable",
+      "name_zh": "20次下载包",
+      "name_en": "20 Downloads Pack",
+      "price_cny": 9,
+      "description_zh": "一次性购买，20次高清下载",
+      "description_en": "One-time purchase, 20 HD downloads",
+      "download_credits": 20
+    },
+    {
+      "product_id": "com.beatsync.pack.50",
+      "type": "non-consumable",
+      "name_zh": "50次下载包",
+      "name_en": "50 Downloads Pack",
+      "price_cny": 20,
+      "description_zh": "一次性购买，50次高清下载",
+      "description_en": "One-time purchase, 50 HD downloads",
+      "download_credits": 50
+    }
+  ],
+  "subscription_groups": [
+    {
+      "group_id": "basic",
+      "name_zh": "基础版",
+      "name_en": "Basic",
+      "reference_name": "基础版订阅组"
+    },
+    {
+      "group_id": "premium",
+      "name_zh": "高级版",
+      "name_en": "Premium",
+      "reference_name": "高级版订阅组"
+    }
+  ],
+  "notes": {
+    "subscription_groups": "订阅组需要在 App Store Connect 中先创建，然后产品才能关联到组",
+    "pricing": "价格以 CNY（人民币）为单位，App Store Connect 会自动转换为其他货币",
+    "testing": "建议先创建 1 个测试产品，验证流程后再创建其他产品"
+  }
+}
+

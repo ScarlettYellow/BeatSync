@@ -295,3 +295,12 @@ sudo swapon /swapfile
 
 
 
+
+
+
+
+
+
+
+
+

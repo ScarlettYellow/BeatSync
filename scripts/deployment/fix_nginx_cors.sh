@@ -50,3 +50,12 @@ sudo nginx -t && sudo systemctl restart nginx && echo "✅ Nginx配置已更新�
 
 
 
+
+
+
+
+
+
+
+
+

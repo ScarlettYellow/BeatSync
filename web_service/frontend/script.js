@@ -217,7 +217,9 @@ let state = {
     danceFile: null,
     bgmFile: null,
     modularOutput: null,  // modular版本输出文件路径
-    v2Output: null        // v2版本输出文件路径
+    v2Output: null,       // v2版本输出文件路径
+    isUploading: false,   // 是否有文件正在上传
+    uploadingFileType: null  // 当前正在上传的文件类型: 'dance' | 'bgm' | null
 };
 
 // 下载状态标志（用于同时显示下载和处理状态）
@@ -391,9 +393,11 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
         
-        // 隐藏App端滚动条
-        document.documentElement.style.setProperty('overflow-y', 'hidden', 'important');
-        document.body.style.setProperty('overflow-y', 'hidden', 'important');
+        // App端：允许滚动，但隐藏滚动条
+        document.documentElement.style.setProperty('overflow-y', 'auto', 'important');
+        document.body.style.setProperty('overflow-y', 'auto', 'important');
+        // 隐藏滚动条（视觉上隐藏，但功能保留）
+        document.documentElement.style.setProperty('-webkit-overflow-scrolling', 'touch', 'important');
         
         // 尝试动态加载完整的 CSS 文件（修复 capacitor://localhost CSS 加载问题）
         // 如果外部 CSS 只加载了部分规则，则从文件读取完整内容并注入
@@ -460,11 +464,13 @@ document.addEventListener('DOMContentLoaded', () => {
                                     body {
                                         padding-top: ${Math.max(90, safeAreaTop ? safeAreaTop + 30 : 70)}px !important;
                                         padding-bottom: ${Math.max(20, safeAreaBottom)}px !important;
-                                        overflow-y: hidden !important;
+                                        overflow-y: auto !important;
+                                        -webkit-overflow-scrolling: touch !important;
                                     }
                                     
                                     html {
-                                        overflow-y: hidden !important;
+                                        overflow-y: auto !important;
+                                        -webkit-overflow-scrolling: touch !important;
                                     }
                                     
                                     .container {
@@ -482,6 +488,142 @@ document.addEventListener('DOMContentLoaded', () => {
                                     h1 {
                                         margin-top: 0px !important;
                                         padding-top: 0px !important;
+                                    }
+                                    
+                                    /* 订阅管理区域样式 */
+                                    .subscription-section {
+                                        margin-top: 32px !important;
+                                        margin-bottom: 24px !important;
+                                        display: block !important;
+                                    }
+                                    
+                                    .subscription-card {
+                                        background: white !important;
+                                        border-radius: 12px !important;
+                                        padding: 24px !important;
+                                        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08) !important;
+                                    }
+                                    
+                                    .subscription-card h3 {
+                                        font-size: 18px !important;
+                                        font-weight: 600 !important;
+                                        color: #333333 !important;
+                                        margin-bottom: 16px !important;
+                                    }
+                                    
+                                    .subscription-status {
+                                        margin-bottom: 16px !important;
+                                    }
+                                    
+                                    .subscription-status-text {
+                                        font-size: 16px !important;
+                                        color: #666666 !important;
+                                        line-height: 1.5 !important;
+                                    }
+                                    
+                                    .subscription-status-text.active { color: #4CAF50 !important; }
+                                    .subscription-status-text.inactive { color: #666666 !important; }
+                                    .subscription-status-text.warning { color: #FF9800 !important; }
+                                    .subscription-status-text.error { color: #f44336 !important; }
+                                    .subscription-status-text.loading { color: #2196F3 !important; }
+                                    .subscription-status-text.success { color: #4CAF50 !important; }
+                                    
+                                    .subscription-actions {
+                                        display: flex !important;
+                                        gap: 12px !important;
+                                        flex-wrap: wrap !important;
+                                        justify-content: center !important;
+                                    }
+                                    
+                                    .subscription-btn {
+                                        background-color: #007AFF !important;
+                                        color: white !important;
+                                        border: none !important;
+                                        padding: 12px 24px !important;
+                                        font-size: 16px !important;
+                                        font-weight: 600 !important;
+                                        border-radius: 8px !important;
+                                        cursor: pointer !important;
+                                        transition: background-color 0.3s !important;
+                                    }
+                                    
+                                    .subscription-btn:hover:not(:disabled) { background-color: #0056b3 !important; }
+                                    .subscription-btn:disabled {
+                                        background-color: #CCCCCC !important;
+                                        cursor: not-allowed !important;
+                                        opacity: 0.7 !important;
+                                    }
+                                    
+                                    .subscription-btn.secondary { background-color: #6c757d !important; }
+                                    .subscription-btn.secondary:hover:not(:disabled) { background-color: #5a6268 !important; }
+                                    
+                                    .products-section {
+                                        margin-top: 20px !important;
+                                        background: white !important;
+                                        border-radius: 12px !important;
+                                        padding: 24px !important;
+                                        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08) !important;
+                                    }
+                                    
+                                    .products-section h4 {
+                                        font-size: 18px !important;
+                                        font-weight: 600 !important;
+                                        color: #333333 !important;
+                                        margin-bottom: 16px !important;
+                                    }
+                                    
+                                    .products-list {
+                                        display: flex !important;
+                                        flex-direction: column !important;
+                                        gap: 16px !important;
+                                    }
+                                    
+                                    .product-card {
+                                        border: 1px solid #E0E0E0 !important;
+                                        border-radius: 8px !important;
+                                        padding: 16px !important;
+                                        background: #FAFAFA !important;
+                                    }
+                                    
+                                    .product-card h5 {
+                                        font-size: 16px !important;
+                                        font-weight: 600 !important;
+                                        color: #333333 !important;
+                                        margin-bottom: 8px !important;
+                                    }
+                                    
+                                    .product-price {
+                                        font-size: 20px !important;
+                                        font-weight: 700 !important;
+                                        color: #007AFF !important;
+                                        margin-bottom: 8px !important;
+                                    }
+                                    
+                                    .product-description {
+                                        font-size: 14px !important;
+                                        color: #666666 !important;
+                                        margin-bottom: 12px !important;
+                                        line-height: 1.5 !important;
+                                    }
+                                    
+                                    .product-buy-btn {
+                                        background-color: #4CAF50 !important;
+                                        color: white !important;
+                                        border: none !important;
+                                        padding: 10px 20px !important;
+                                        font-size: 14px !important;
+                                        font-weight: 600 !important;
+                                        border-radius: 6px !important;
+                                        cursor: pointer !important;
+                                        width: 100% !important;
+                                        transition: background-color 0.3s !important;
+                                    }
+                                    
+                                    .product-buy-btn:hover:not(:disabled) { background-color: #45a049 !important; }
+                                    .product-buy-btn:disabled {
+                                        background-color: #CCCCCC !important;
+                                        cursor: not-allowed !important;
+                                        opacity: 0.7 !important;
                                     }
                                     
                                     /* 隐藏滚动条 */
@@ -562,11 +704,13 @@ document.addEventListener('DOMContentLoaded', () => {
                                                     color: #333333 !important;
                                                     padding-top: ${Math.max(90, safeAreaTop ? safeAreaTop + 30 : 70)}px !important;
                                                     padding-bottom: ${Math.max(20, safeAreaBottom)}px !important;
-                                                    overflow-y: hidden !important;
+                                                    overflow-y: auto !important;
+                                                    -webkit-overflow-scrolling: touch !important;
                                                 }
                                                 
                                                 html {
-                                                    overflow-y: hidden !important;
+                                                    overflow-y: auto !important;
+                                                    -webkit-overflow-scrolling: touch !important;
                                                     background-color: #F5F5F5 !important;
                                                 }
                                                 
@@ -725,7 +869,7 @@ document.addEventListener('DOMContentLoaded', () => {
                                                     display: flex !important;
                                                     align-items: center !important;
                                                     justify-content: center !important;
-                                                    gap: 8px !important;
+                                                    gap: 4px !important;
                                                 }
                                                 
                                                 .status-section {
@@ -739,6 +883,20 @@ document.addEventListener('DOMContentLoaded', () => {
                                                     color: #666666 !important;
                                                     text-align: center !important;
                                                     margin: 0 !important;
+                                                }
+                                                
+                                                .status-hint {
+                                                    font-size: 14px !important;
+                                                    line-height: 1.4 !important;
+                                                    color: #666666 !important;
+                                                    margin-top: 12px !important;
+                                                    font-weight: normal !important;
+                                                    text-align: center !important;
+                                                }
+                                                
+                                                .download-section {
+                                                    margin-top: 33px !important;
+                                                    text-align: center !important;
                                                 }
                                                 
                                                 /* 状态文字颜色（根据状态变化） */
@@ -908,6 +1066,170 @@ document.addEventListener('DOMContentLoaded', () => {
                                                     font-size: 12px !important;
                                                 }
                                                 
+                                                /* 订阅管理区域样式 */
+                                                .subscription-section {
+                                                    margin-top: 32px !important;
+                                                    margin-bottom: 24px !important;
+                                                    display: block !important;
+                                                }
+                                                
+                                                .subscription-card {
+                                                    background: white !important;
+                                                    border-radius: 12px !important;
+                                                    padding: 24px !important;
+                                                    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08) !important;
+                                                }
+                                                
+                                                .subscription-card h3 {
+                                                    font-size: 18px !important;
+                                                    font-weight: 600 !important;
+                                                    color: #333333 !important;
+                                                    margin-bottom: 16px !important;
+                                                }
+                                                
+                                                .subscription-status {
+                                                    margin-bottom: 16px !important;
+                                                }
+                                                
+                                                .subscription-status-text {
+                                                    font-size: 16px !important;
+                                                    color: #666666 !important;
+                                                    line-height: 1.5 !important;
+                                                }
+                                                
+                                                .subscription-status-text.active {
+                                                    color: #4CAF50 !important;
+                                                }
+                                                
+                                                .subscription-status-text.inactive {
+                                                    color: #666666 !important;
+                                                }
+                                                
+                                                .subscription-status-text.warning {
+                                                    color: #FF9800 !important;
+                                                }
+                                                
+                                                .subscription-status-text.error {
+                                                    color: #f44336 !important;
+                                                }
+                                                
+                                                .subscription-status-text.loading {
+                                                    color: #2196F3 !important;
+                                                }
+                                                
+                                                .subscription-status-text.success {
+                                                    color: #4CAF50 !important;
+                                                }
+                                                
+                                                .subscription-actions {
+                                                    display: flex !important;
+                                                    gap: 12px !important;
+                                                    flex-wrap: wrap !important;
+                                                    justify-content: center !important;
+                                                }
+                                                
+                                                .subscription-btn {
+                                                    background-color: #007AFF !important;
+                                                    color: white !important;
+                                                    border: none !important;
+                                                    padding: 12px 24px !important;
+                                                    font-size: 16px !important;
+                                                    font-weight: 600 !important;
+                                                    border-radius: 8px !important;
+                                                    cursor: pointer !important;
+                                                    transition: background-color 0.3s !important;
+                                                }
+                                                
+                                                .subscription-btn:hover:not(:disabled) {
+                                                    background-color: #0056b3 !important;
+                                                }
+                                                
+                                                .subscription-btn:disabled {
+                                                    background-color: #CCCCCC !important;
+                                                    cursor: not-allowed !important;
+                                                    opacity: 0.7 !important;
+                                                }
+                                                
+                                                .subscription-btn.secondary {
+                                                    background-color: #6c757d !important;
+                                                }
+                                                
+                                                .subscription-btn.secondary:hover:not(:disabled) {
+                                                    background-color: #5a6268 !important;
+                                                }
+                                                
+                                                .products-section {
+                                                    margin-top: 20px !important;
+                                                    background: white !important;
+                                                    border-radius: 12px !important;
+                                                    padding: 24px !important;
+                                                    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08) !important;
+                                                }
+                                                
+                                                .products-section h4 {
+                                                    font-size: 18px !important;
+                                                    font-weight: 600 !important;
+                                                    color: #333333 !important;
+                                                    margin-bottom: 16px !important;
+                                                }
+                                                
+                                                .products-list {
+                                                    display: flex !important;
+                                                    flex-direction: column !important;
+                                                    gap: 16px !important;
+                                                }
+                                                
+                                                .product-card {
+                                                    border: 1px solid #E0E0E0 !important;
+                                                    border-radius: 8px !important;
+                                                    padding: 16px !important;
+                                                    background: #FAFAFA !important;
+                                                }
+                                                
+                                                .product-card h5 {
+                                                    font-size: 16px !important;
+                                                    font-weight: 600 !important;
+                                                    color: #333333 !important;
+                                                    margin-bottom: 8px !important;
+                                                }
+                                                
+                                                .product-price {
+                                                    font-size: 20px !important;
+                                                    font-weight: 700 !important;
+                                                    color: #007AFF !important;
+                                                    margin-bottom: 8px !important;
+                                                }
+                                                
+                                                .product-description {
+                                                    font-size: 14px !important;
+                                                    color: #666666 !important;
+                                                    margin-bottom: 12px !important;
+                                                    line-height: 1.5 !important;
+                                                }
+                                                
+                                                .product-buy-btn {
+                                                    background-color: #4CAF50 !important;
+                                                    color: white !important;
+                                                    border: none !important;
+                                                    padding: 10px 20px !important;
+                                                    font-size: 14px !important;
+                                                    font-weight: 600 !important;
+                                                    border-radius: 6px !important;
+                                                    cursor: pointer !important;
+                                                    width: 100% !important;
+                                                    transition: background-color 0.3s !important;
+                                                }
+                                                
+                                                .product-buy-btn:hover:not(:disabled) {
+                                                    background-color: #45a049 !important;
+                                                }
+                                                
+                                                .product-buy-btn:disabled {
+                                                    background-color: #CCCCCC !important;
+                                                    cursor: not-allowed !important;
+                                                    opacity: 0.7 !important;
+                                                }
+                                                
                                                 ::-webkit-scrollbar {
                                                     display: none !important;
                                                 }
@@ -958,13 +1280,154 @@ document.addEventListener('DOMContentLoaded', () => {
                                 body {
                                     padding-top: ${Math.max(90, safeAreaTop ? safeAreaTop + 30 : 70)}px !important;
                                     padding-bottom: ${Math.max(20, safeAreaBottom)}px !important;
-                                    overflow-y: hidden !important;
+                                    overflow-y: auto !important;
+                                    -webkit-overflow-scrolling: touch !important;
                                 }
-                                html { overflow-y: hidden !important; }
+                                html { 
+                                    overflow-y: auto !important;
+                                    -webkit-overflow-scrolling: touch !important;
+                                }
                                 .container { min-height: auto !important; }
                                 .upload-section { flex: none !important; }
                                 .status-section { min-height: auto !important; }
                                 h1 { margin-top: 0px !important; padding-top: 0px !important; }
+                                
+                                /* 订阅管理区域样式 */
+                                .subscription-section {
+                                    margin-top: 32px !important;
+                                    margin-bottom: 24px !important;
+                                    display: block !important;
+                                }
+                                
+                                .subscription-card {
+                                    background: white !important;
+                                    border-radius: 12px !important;
+                                    padding: 24px !important;
+                                    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08) !important;
+                                }
+                                
+                                .subscription-card h3 {
+                                    font-size: 18px !important;
+                                    font-weight: 600 !important;
+                                    color: #333333 !important;
+                                    margin-bottom: 16px !important;
+                                }
+                                
+                                .subscription-status {
+                                    margin-bottom: 16px !important;
+                                }
+                                
+                                .subscription-status-text {
+                                    font-size: 16px !important;
+                                    color: #666666 !important;
+                                    line-height: 1.5 !important;
+                                }
+                                
+                                .subscription-status-text.active { color: #4CAF50 !important; }
+                                .subscription-status-text.inactive { color: #666666 !important; }
+                                .subscription-status-text.warning { color: #FF9800 !important; }
+                                .subscription-status-text.error { color: #f44336 !important; }
+                                .subscription-status-text.loading { color: #2196F3 !important; }
+                                .subscription-status-text.success { color: #4CAF50 !important; }
+                                
+                                .subscription-actions {
+                                    display: flex !important;
+                                    gap: 12px !important;
+                                    flex-wrap: wrap !important;
+                                    justify-content: center !important;
+                                }
+                                
+                                .subscription-btn {
+                                    background-color: #007AFF !important;
+                                    color: white !important;
+                                    border: none !important;
+                                    padding: 12px 24px !important;
+                                    font-size: 16px !important;
+                                    font-weight: 600 !important;
+                                    border-radius: 8px !important;
+                                    cursor: pointer !important;
+                                    transition: background-color 0.3s !important;
+                                }
+                                
+                                .subscription-btn:hover:not(:disabled) { background-color: #0056b3 !important; }
+                                .subscription-btn:disabled {
+                                    background-color: #CCCCCC !important;
+                                    cursor: not-allowed !important;
+                                    opacity: 0.7 !important;
+                                }
+                                
+                                .subscription-btn.secondary { background-color: #6c757d !important; }
+                                .subscription-btn.secondary:hover:not(:disabled) { background-color: #5a6268 !important; }
+                                
+                                .products-section {
+                                    margin-top: 20px !important;
+                                    background: white !important;
+                                    border-radius: 12px !important;
+                                    padding: 24px !important;
+                                    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08) !important;
+                                }
+                                
+                                .products-section h4 {
+                                    font-size: 18px !important;
+                                    font-weight: 600 !important;
+                                    color: #333333 !important;
+                                    margin-bottom: 16px !important;
+                                }
+                                
+                                .products-list {
+                                    display: flex !important;
+                                    flex-direction: column !important;
+                                    gap: 16px !important;
+                                }
+                                
+                                .product-card {
+                                    border: 1px solid #E0E0E0 !important;
+                                    border-radius: 8px !important;
+                                    padding: 16px !important;
+                                    background: #FAFAFA !important;
+                                }
+                                
+                                .product-card h5 {
+                                    font-size: 16px !important;
+                                    font-weight: 600 !important;
+                                    color: #333333 !important;
+                                    margin-bottom: 8px !important;
+                                }
+                                
+                                .product-price {
+                                    font-size: 20px !important;
+                                    font-weight: 700 !important;
+                                    color: #007AFF !important;
+                                    margin-bottom: 8px !important;
+                                }
+                                
+                                .product-description {
+                                    font-size: 14px !important;
+                                    color: #666666 !important;
+                                    margin-bottom: 12px !important;
+                                    line-height: 1.5 !important;
+                                }
+                                
+                                .product-buy-btn {
+                                    background-color: #4CAF50 !important;
+                                    color: white !important;
+                                    border: none !important;
+                                    padding: 10px 20px !important;
+                                    font-size: 14px !important;
+                                    font-weight: 600 !important;
+                                    border-radius: 6px !important;
+                                    cursor: pointer !important;
+                                    width: 100% !important;
+                                    transition: background-color 0.3s !important;
+                                }
+                                
+                                .product-buy-btn:hover:not(:disabled) { background-color: #45a049 !important; }
+                                .product-buy-btn:disabled {
+                                    background-color: #CCCCCC !important;
+                                    cursor: not-allowed !important;
+                                    opacity: 0.7 !important;
+                                }
+                                
                                 ::-webkit-scrollbar { display: none !important; }
                                 * { -ms-overflow-style: none !important; scrollbar-width: none !important; }
                             `;
@@ -993,11 +1456,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 body {
                     padding-top: ${Math.max(90, safeAreaTop ? safeAreaTop + 30 : 70)}px !important;
                     padding-bottom: ${Math.max(20, safeAreaBottom)}px !important;
-                    overflow-y: hidden !important;
+                    overflow-y: auto !important;
+                    -webkit-overflow-scrolling: touch !important;
                 }
                 
                 html {
-                    overflow-y: hidden !important;
+                    overflow-y: auto !important;
+                    -webkit-overflow-scrolling: touch !important;
                 }
                 
                 .container {
@@ -1015,6 +1480,142 @@ document.addEventListener('DOMContentLoaded', () => {
                 h1 {
                     margin-top: 0px !important;
                     padding-top: 0px !important;
+                }
+                
+                /* 订阅管理区域样式 */
+                .subscription-section {
+                    margin-top: 32px !important;
+                    margin-bottom: 24px !important;
+                    display: block !important;
+                }
+                
+                .subscription-card {
+                    background: white !important;
+                    border-radius: 12px !important;
+                    padding: 24px !important;
+                    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08) !important;
+                }
+                
+                .subscription-card h3 {
+                    font-size: 18px !important;
+                    font-weight: 600 !important;
+                    color: #333333 !important;
+                    margin-bottom: 16px !important;
+                }
+                
+                .subscription-status {
+                    margin-bottom: 16px !important;
+                }
+                
+                .subscription-status-text {
+                    font-size: 16px !important;
+                    color: #666666 !important;
+                    line-height: 1.5 !important;
+                }
+                
+                .subscription-status-text.active { color: #4CAF50 !important; }
+                .subscription-status-text.inactive { color: #666666 !important; }
+                .subscription-status-text.warning { color: #FF9800 !important; }
+                .subscription-status-text.error { color: #f44336 !important; }
+                .subscription-status-text.loading { color: #2196F3 !important; }
+                .subscription-status-text.success { color: #4CAF50 !important; }
+                
+                .subscription-actions {
+                    display: flex !important;
+                    gap: 12px !important;
+                    flex-wrap: wrap !important;
+                    justify-content: center !important;
+                }
+                
+                .subscription-btn {
+                    background-color: #007AFF !important;
+                    color: white !important;
+                    border: none !important;
+                    padding: 12px 24px !important;
+                    font-size: 16px !important;
+                    font-weight: 600 !important;
+                    border-radius: 8px !important;
+                    cursor: pointer !important;
+                    transition: background-color 0.3s !important;
+                }
+                
+                .subscription-btn:hover:not(:disabled) { background-color: #0056b3 !important; }
+                .subscription-btn:disabled {
+                    background-color: #CCCCCC !important;
+                    cursor: not-allowed !important;
+                    opacity: 0.7 !important;
+                }
+                
+                .subscription-btn.secondary { background-color: #6c757d !important; }
+                .subscription-btn.secondary:hover:not(:disabled) { background-color: #5a6268 !important; }
+                
+                .products-section {
+                    margin-top: 20px !important;
+                    background: white !important;
+                    border-radius: 12px !important;
+                    padding: 24px !important;
+                    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08) !important;
+                }
+                
+                .products-section h4 {
+                    font-size: 18px !important;
+                    font-weight: 600 !important;
+                    color: #333333 !important;
+                    margin-bottom: 16px !important;
+                }
+                
+                .products-list {
+                    display: flex !important;
+                    flex-direction: column !important;
+                    gap: 16px !important;
+                }
+                
+                .product-card {
+                    border: 1px solid #E0E0E0 !important;
+                    border-radius: 8px !important;
+                    padding: 16px !important;
+                    background: #FAFAFA !important;
+                }
+                
+                .product-card h5 {
+                    font-size: 16px !important;
+                    font-weight: 600 !important;
+                    color: #333333 !important;
+                    margin-bottom: 8px !important;
+                }
+                
+                .product-price {
+                    font-size: 20px !important;
+                    font-weight: 700 !important;
+                    color: #007AFF !important;
+                    margin-bottom: 8px !important;
+                }
+                
+                .product-description {
+                    font-size: 14px !important;
+                    color: #666666 !important;
+                    margin-bottom: 12px !important;
+                    line-height: 1.5 !important;
+                }
+                
+                .product-buy-btn {
+                    background-color: #4CAF50 !important;
+                    color: white !important;
+                    border: none !important;
+                    padding: 10px 20px !important;
+                    font-size: 14px !important;
+                    font-weight: 600 !important;
+                    border-radius: 6px !important;
+                    cursor: pointer !important;
+                    width: 100% !important;
+                    transition: background-color 0.3s !important;
+                }
+                
+                .product-buy-btn:hover:not(:disabled) { background-color: #45a049 !important; }
+                .product-buy-btn:disabled {
+                    background-color: #CCCCCC !important;
+                    cursor: not-allowed !important;
+                    opacity: 0.7 !important;
                 }
                 
                 /* 隐藏滚动条 */
@@ -1153,7 +1754,52 @@ document.addEventListener('DOMContentLoaded', () => {
     setupFileInputs();
     setupDragAndDrop();
     updateProcessButton();
+    
+    // 初始化订阅功能
+    console.log('[主初始化] 准备初始化订阅功能...');
+    console.log('[主初始化] isCapacitorNative:', isCapacitorNative);
+    
+    // 如果是 iOS App，立即强制显示订阅区域（不等待异步初始化）
+    if (isCapacitorNative) {
+        console.log('[主初始化] iOS App 环境，立即显示订阅区域');
+        
+        // 延迟一点，确保 DOM 完全加载
+        setTimeout(() => {
+            const subscriptionSection = document.getElementById('subscription-section');
+            if (subscriptionSection) {
+                // 移除内联的 display: none
+                subscriptionSection.removeAttribute('style');
+                // 强制显示
+                subscriptionSection.style.setProperty('display', 'block', 'important');
+                subscriptionSection.style.setProperty('visibility', 'visible', 'important');
+                subscriptionSection.style.setProperty('opacity', '1', 'important');
+                console.log('[主初始化] ✅ 订阅区域已强制显示');
+                
+                // 验证
+                setTimeout(() => {
+                    const computedStyle = window.getComputedStyle(subscriptionSection);
+                    console.log('[主初始化] 验证 - display:', computedStyle.display);
+                    console.log('[主初始化] 验证 - 元素可见:', subscriptionSection.offsetParent !== null);
+                    console.log('[主初始化] 验证 - 元素位置:', subscriptionSection.getBoundingClientRect());
+                }, 100);
+            } else {
+                console.error('[主初始化] ❌ 找不到 subscription-section 元素');
+                // 尝试查找所有包含 subscription 的元素
+                const allElements = document.querySelectorAll('[id*="subscription"], [class*="subscription"]');
+                console.log('[主初始化] 找到的所有订阅相关元素:', allElements);
+            }
+        }, 100);
+    }
+    
+    // 异步初始化订阅功能
+    initSubscription();
     updateResetButtonVisibility();
+    
+    // 初始化上传区域状态
+    updateUploadAreaState();
+    
+    // 初始化状态提示
+    updateStatusHint();
     
     // 手机端优化：隐藏拖拽提示
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
@@ -1173,7 +1819,9 @@ function resetState() {
         danceFile: null,
         bgmFile: null,
         modularOutput: null,
-        v2Output: null
+        v2Output: null,
+        isUploading: false,
+        uploadingFileType: null
     };
     
     // 清空文件输入
@@ -1193,6 +1841,7 @@ function resetState() {
     isDownloading = false;
     downloadingVersion = null;
     downloadingStatusMessage = null;
+    updateStatusHint(); // 更新提示显示
     
     // 清除下载缓存
     downloadedCache.v2 = null;
@@ -1222,6 +1871,12 @@ function resetState() {
     
     // 隐藏重置按钮（无内容时）
     updateResetButtonVisibility();
+    
+    // 更新上传区域状态
+    updateUploadAreaState();
+    
+    // 更新提示显示状态
+    updateStatusHint();
     
     releaseWakeLock('processing');
     releaseWakeLock('download');
@@ -1318,6 +1973,29 @@ function setupFileInputs() {
     bgmFileInput.addEventListener('change', (e) => handleFileSelect(e, 'bgm'));
 }
 
+// 清除指定文件类型的数据
+function clearFileData(fileType) {
+    if (fileType === 'dance') {
+        // 清除原始视频数据
+        state.danceFileId = null;
+        state.danceFile = null;
+        document.getElementById('dance-info').style.display = 'none';
+        // 注意：不自动清除音源视频，允许用户保留已上传的音源视频
+    } else if (fileType === 'bgm') {
+        // 清除音源视频数据
+        state.bgmFileId = null;
+        state.bgmFile = null;
+        document.getElementById('bgm-info').style.display = 'none';
+    }
+    
+    // 更新处理按钮状态
+    updateProcessButton();
+    // 更新上传区域状态
+    updateUploadAreaState();
+    // 更新重置按钮显示状态
+    updateResetButtonVisibility();
+}
+
 // 处理文件选择
 async function handleFileSelect(event, fileType) {
     console.log('📁 handleFileSelect 被调用:', { fileType, eventType: event.type });
@@ -1325,6 +2003,20 @@ async function handleFileSelect(event, fileType) {
     if (!file) {
         console.warn('⚠️ 未选择文件');
         return;
+    }
+    
+    // 检查是否已有文件正在上传
+    if (state.isUploading) {
+        updateStatus('已有文件正在上传，请等待完成', 'error');
+        event.target.value = ''; // 清空选择
+        return;
+    }
+    
+    // 如果该文件类型已上传，先清除旧数据（允许重新上传）
+    if ((fileType === 'dance' && state.danceFileId !== null) || 
+        (fileType === 'bgm' && state.bgmFileId !== null)) {
+        console.log(`🔄 检测到 ${fileType} 文件已上传，清除旧数据以允许重新上传`);
+        clearFileData(fileType);
     }
     
     console.log('📁 选择的文件:', {
@@ -1496,6 +2188,12 @@ async function uploadFile(file, fileType, retryCount = 0) {
         fileType: fileType,
         retryCount: retryCount
     });
+    
+    // 设置上传状态
+    state.isUploading = true;
+    state.uploadingFileType = fileType;
+    updateUploadAreaState(); // 更新UI状态
+    updateStatusHint(); // 更新提示显示
     
     const formData = new FormData();
     formData.append('file', file);
@@ -1921,6 +2619,12 @@ async function uploadFile(file, fileType, retryCount = 0) {
         updateStatus('文件上传成功', 'success');
         updateProcessButton();
         
+        // 上传成功后，清除上传状态
+        state.isUploading = false;
+        state.uploadingFileType = null;
+        updateUploadAreaState(); // 更新UI状态
+        updateStatusHint(); // 更新提示显示
+        
     } catch (error) {
         console.error('上传异常:', error);
         console.error('错误堆栈:', error.stack);
@@ -1931,6 +2635,12 @@ async function uploadFile(file, fileType, retryCount = 0) {
         if (error.name === 'TypeError' && error.message.includes('fetch')) {
             updateStatus('上传失败: 无法连接到后端服务，请确认后端服务已启动', 'error');
         }
+        
+        // 上传失败后，清除上传状态
+        state.isUploading = false;
+        state.uploadingFileType = null;
+        updateUploadAreaState(); // 更新UI状态
+        updateStatusHint(); // 更新提示显示
     }
 }
 
@@ -1950,6 +2660,107 @@ function formatFileSize(bytes) {
     return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
 }
 
+// 更新上传区域的启用/禁用状态
+function updateUploadAreaState() {
+    const danceUpload = document.getElementById('dance-upload');
+    const bgmUpload = document.getElementById('bgm-upload');
+    const danceFileInput = document.getElementById('dance-file');
+    const bgmFileInput = document.getElementById('bgm-file');
+    const danceUploadBtn = danceUpload.querySelector('.upload-btn');
+    const bgmUploadBtn = bgmUpload.querySelector('.upload-btn');
+    
+    // 判断原始视频是否已上传
+    const danceUploaded = state.danceFileId !== null;
+    // 判断音源视频是否已上传
+    const bgmUploaded = state.bgmFileId !== null;
+    // 判断是否正在上传
+    const isUploading = state.isUploading;
+    // 判断当前正在上传的是哪个文件
+    const uploadingDance = state.uploadingFileType === 'dance';
+    const uploadingBgm = state.uploadingFileType === 'bgm';
+    
+    // 原始视频上传区域
+    if (uploadingDance) {
+        // 正在上传：禁用
+        disableUploadArea(danceUpload, danceFileInput, danceUploadBtn, '上传中...');
+    } else if (isUploading && uploadingBgm) {
+        // 音源视频正在上传时，原始视频也禁用
+        disableUploadArea(danceUpload, danceFileInput, danceUploadBtn, '等待音源视频上传完成');
+    } else if (danceUploaded) {
+        // 已上传：允许重新上传（不禁用，显示提示）
+        enableUploadArea(danceUpload, danceFileInput, danceUploadBtn);
+        const hint = danceUpload.querySelector('.upload-hint');
+        if (hint && !hint.dataset.originalText) {
+            hint.dataset.originalText = hint.textContent;
+        }
+        if (hint) {
+            hint.textContent = '点击重新上传原始视频';
+        }
+    } else {
+        // 未上传且未在上传：启用
+        enableUploadArea(danceUpload, danceFileInput, danceUploadBtn);
+    }
+    
+    // 音源视频上传区域
+    if (uploadingBgm) {
+        // 正在上传：禁用
+        disableUploadArea(bgmUpload, bgmFileInput, bgmUploadBtn, '上传中...');
+    } else if (isUploading && uploadingDance) {
+        // 原始视频正在上传：禁用
+        disableUploadArea(bgmUpload, bgmFileInput, bgmUploadBtn, '等待原始视频上传完成');
+    } else if (bgmUploaded) {
+        // 已上传：允许重新上传（不禁用，显示提示）
+        enableUploadArea(bgmUpload, bgmFileInput, bgmUploadBtn);
+        const hint = bgmUpload.querySelector('.upload-hint');
+        if (hint && !hint.dataset.originalText) {
+            hint.dataset.originalText = hint.textContent;
+        }
+        if (hint) {
+            hint.textContent = '点击重新上传音源视频';
+        }
+    } else {
+        // 未上传且未在上传：启用（允许任意顺序上传）
+        enableUploadArea(bgmUpload, bgmFileInput, bgmUploadBtn);
+    }
+}
+
+// 禁用上传区域
+function disableUploadArea(area, fileInput, uploadBtn, reason = '') {
+    area.style.opacity = '0.6';
+    area.style.pointerEvents = 'none';
+    area.classList.add('disabled');
+    fileInput.disabled = true;
+    uploadBtn.disabled = true;
+    
+    // 如果有提示原因，更新提示文本
+    if (reason) {
+        const hint = area.querySelector('.upload-hint');
+        if (hint) {
+            // 保存原始文本（如果还没有保存）
+            if (!hint.dataset.originalText) {
+                hint.dataset.originalText = hint.textContent;
+            }
+            hint.textContent = reason;
+        }
+    }
+}
+
+// 启用上传区域
+function enableUploadArea(area, fileInput, uploadBtn) {
+    area.style.opacity = '1';
+    area.style.pointerEvents = 'auto';
+    area.classList.remove('disabled');
+    fileInput.disabled = false;
+    uploadBtn.disabled = false;
+    
+    // 恢复原始提示文本
+    const hint = area.querySelector('.upload-hint');
+    if (hint && hint.dataset.originalText) {
+        hint.textContent = hint.dataset.originalText;
+        delete hint.dataset.originalText;
+    }
+}
+
 // 设置拖拽上传
 function setupDragAndDrop() {
     const danceUpload = document.getElementById('dance-upload');
@@ -1960,6 +2771,11 @@ function setupDragAndDrop() {
         const fileInput = index === 0 ? danceFileInput : bgmFileInput;
         
         area.addEventListener('dragover', (e) => {
+            // 检查是否允许拖拽
+            if (state.isUploading) {
+                return; // 不允许拖拽（串行上传限制）
+            }
+            // 注意：已上传的文件类型不再禁用，允许重新上传，所以不再检查 disabled 类
             e.preventDefault();
             area.classList.add('dragover');
         });
@@ -1974,6 +2790,19 @@ function setupDragAndDrop() {
             
             const file = e.dataTransfer.files[0];
             if (!file) return;
+            
+            // 检查是否已有文件正在上传
+            if (state.isUploading) {
+                updateStatus('已有文件正在上传，请等待完成', 'error');
+                return;
+            }
+            
+            // 如果该文件类型已上传，先清除旧数据（允许重新上传）
+            if ((fileType === 'dance' && state.danceFileId !== null) || 
+                (fileType === 'bgm' && state.bgmFileId !== null)) {
+                console.log(`🔄 拖拽上传：检测到 ${fileType} 文件已上传，清除旧数据以允许重新上传`);
+                clearFileData(fileType);
+            }
             
             // 验证文件格式
             const allowedExtensions = ['.mp4', '.MP4', '.mov', '.MOV', '.avi', '.AVI', '.mkv', '.MKV'];
@@ -2153,6 +2982,7 @@ async function pollTaskStatus(taskId) {
     
     // 标记轮询开始
     isPolling = true;
+    updateStatusHint(); // 更新提示显示
     
     // 保存到全局变量，以便重置时可以停止
     const poll = async () => {
@@ -2282,6 +3112,7 @@ async function pollTaskStatus(taskId) {
                     updateResetButtonVisibility();
                     processBtn.disabled = false;
                     processBtn.textContent = '开始处理';
+                    updateStatusHint(); // 更新提示显示
                     return; // 停止轮询
                 }
                 
@@ -2290,21 +3121,64 @@ async function pollTaskStatus(taskId) {
                 const elapsedMinutes = Math.floor(elapsedSeconds / 60);
                 const remainingSeconds = elapsedSeconds % 60;
                 
-                // 显示详细状态消息
-                const statusMsg = result.message || '正在处理，请稍候...';
-                let processingStatusMsg;
-                if (elapsedSeconds > 300) {
-                    processingStatusMsg = `${statusMsg} (已等待${elapsedMinutes}分${remainingSeconds}秒)`;
+                // 构建多行状态消息数组（格式B：简洁格式）
+                const statusMessages = [];
+                const statusTypes = [];
+                
+                // 检查各版本的处理状态（复用上面已声明的 modularDone 和 v2Done）
+                const modularStatus = result.modular_status || 'processing';
+                const v2Status = result.v2_status || 'processing';
+                
+                // 添加Modular版本状态
+                if (modularDone) {
+                    if (modularStatus === 'success') {
+                        statusMessages.push('Modular版本: 已完成');
+                        statusTypes.push('success');
+                    } else {
+                        statusMessages.push('Modular版本: 处理失败');
+                        statusTypes.push('error');
+                    }
                 } else {
-                    processingStatusMsg = `${statusMsg} (已等待${elapsedSeconds}秒)`;
+                    // 处理中，显示等待时间
+                    let timeStr;
+                    if (elapsedSeconds > 300) {
+                        timeStr = `${elapsedMinutes}分${remainingSeconds}秒`;
+                    } else {
+                        timeStr = `${elapsedSeconds}秒`;
+                    }
+                    statusMessages.push(`Modular版本: 处理中... (${timeStr})`);
+                    statusTypes.push('processing');
                 }
                 
-                // 如果正在下载，只显示下载状态，不重复显示处理状态
-                if (isDownloading && downloadingStatusMessage) {
-                    updateStatus(downloadingStatusMessage, 'processing');
+                // 添加V2版本状态
+                if (v2Done) {
+                    if (v2Status === 'success') {
+                        statusMessages.push('V2版本: 已完成');
+                        statusTypes.push('success');
+                    } else {
+                        statusMessages.push('V2版本: 处理失败');
+                        statusTypes.push('error');
+                    }
                 } else {
-                    updateStatus(processingStatusMsg, 'processing');
+                    // 处理中，显示等待时间
+                    let timeStr;
+                    if (elapsedSeconds > 300) {
+                        timeStr = `${elapsedMinutes}分${remainingSeconds}秒`;
+                    } else {
+                        timeStr = `${elapsedSeconds}秒`;
+                    }
+                    statusMessages.push(`V2版本: 处理中... (${timeStr})`);
+                    statusTypes.push('processing');
                 }
+                
+                // 如果正在下载，添加下载状态（包含百分比）
+                if (isDownloading && downloadingStatusMessage) {
+                    statusMessages.push(downloadingStatusMessage);
+                    statusTypes.push('processing');
+                }
+                
+                // 使用多行状态显示
+                updateStatusWithMultiple(statusMessages, statusTypes);
                 
                 // 如果有部分完成，显示下载区域并更新按钮
                 if (result.modular_output || result.v2_output) {
@@ -2377,31 +3251,49 @@ function updateStatusWithMultiple(messages, types = []) {
         return;
     }
     
-    // 多个消息，用换行符连接
-    const combinedMessage = messages.join('\n');
-    statusText.textContent = `处理状态:\n${combinedMessage}`;
+    // 多个消息，用换行符连接（格式B：简洁格式，使用项目符号）
+    // 为每个消息设置不同颜色（使用HTML）
+    const statusLines = messages.map((msg, index) => {
+        const type = types[index] || '';
+        let color = '#333333';
+        if (type === 'success') {
+            color = '#4CAF50';
+        } else if (type === 'error') {
+            color = '#f44336';
+        } else if (type === 'info') {
+            color = '#2196F3';
+        } else if (type === 'processing') {
+            color = '#FF9800'; // 黄色/橙色表示处理中
+        }
+        return `<span style="color: ${color}">• ${msg}</span>`;
+    });
+    
+    statusText.innerHTML = statusLines.join('<br>');
     statusText.className = 'status-text';
     if (statusSkeleton) statusSkeleton.style.display = 'none';
     
-    // 设置样式（如果有多个类型，使用第一个类型）
-    const primaryType = types[0] || '';
-    if (primaryType === 'success') {
-        statusText.style.color = '#4CAF50';
-    } else if (primaryType === 'error') {
-        statusText.style.color = '#f44336';
-    } else if (primaryType === 'info') {
-        statusText.style.color = '#2196F3';
-    } else if (primaryType === 'processing') {
-        statusText.style.color = '#FF9800';
-    } else {
-        statusText.style.color = '#333333';
-    }
-    if (primaryType) {
-        statusText.classList.add(primaryType);
-    }
+    // 移除单个类型的类，因为现在使用内联样式
+    statusText.classList.remove('success', 'error', 'info', 'processing');
     
-    // 设置样式支持换行
-    statusText.style.whiteSpace = 'pre-line';
+    // 不需要 whiteSpace: pre-line，因为使用 <br> 标签换行
+    
+    // 更新提示显示状态
+    updateStatusHint();
+}
+
+// 更新状态提示（处理过程中，请保持屏幕点亮，不要锁屏或切换App）
+function updateStatusHint() {
+    const statusHint = document.getElementById('status-hint');
+    if (!statusHint) return;
+    
+    // 判断是否有任务正在进行中（上传、处理、下载）
+    const hasActiveTask = state.isUploading || isPolling || isDownloading;
+    
+    if (hasActiveTask) {
+        statusHint.style.display = 'block';
+    } else {
+        statusHint.style.display = 'none';
+    }
 }
 
 // 更新下载按钮状态（两个独立按钮）
@@ -2592,6 +3484,7 @@ async function downloadFile(url, filename, version = null, button = null) {
         // 设置下载标志（防止轮询覆盖状态）
         isDownloading = true;
         downloadingVersion = version;
+        updateStatusHint(); // 更新提示显示
         setButtonLoading(button, '下载中...');
         if (statusSkeleton) statusSkeleton.style.display = 'flex';
         // 下载时隐藏进度条，百分比显示在状态文本中
@@ -2979,6 +3872,7 @@ async function downloadFileNativeApp(url, filename, version = null) {
         }
         releaseWakeLock('download');
         updateResetButtonVisibility();
+        updateStatusHint(); // 更新提示显示
     }
 }
 
@@ -3182,7 +4076,522 @@ async function downloadFileWithBlob(url, filename, version = null) {
 
 // 下载结果（自动下载所有可用版本）
 
+// ==================== 订阅系统功能 ====================
+
+// 获取订阅服务实例（延迟获取，确保 subscription.js 已加载）
+function getSubscriptionService() {
+    if (typeof window !== 'undefined' && window.subscriptionService) {
+        return window.subscriptionService;
+    }
+    // 如果 window.subscriptionService 不存在，尝试从全局作用域获取
+    if (typeof subscriptionService !== 'undefined') {
+        return subscriptionService;
+    }
+    return null;
+}
+
+// 订阅相关的 DOM 元素（延迟获取，确保 DOM 已加载）
+let subscriptionSection = null;
+let subscriptionStatus = null;
+let viewProductsBtn = null;
+let restorePurchasesBtn = null;
+let productsSection = null;
+let productsList = null;
+
+// 获取订阅相关的 DOM 元素
+function getSubscriptionElements() {
+    if (!subscriptionSection) {
+        subscriptionSection = document.getElementById('subscription-section');
+        subscriptionStatus = document.getElementById('subscription-status');
+        viewProductsBtn = document.getElementById('view-products-btn');
+        restorePurchasesBtn = document.getElementById('restore-purchases-btn');
+        productsSection = document.getElementById('products-section');
+        productsList = document.getElementById('products-list');
+        
+        console.log('[订阅元素] 获取订阅相关元素:');
+        console.log('[订阅元素] subscriptionSection:', subscriptionSection);
+        console.log('[订阅元素] subscriptionStatus:', subscriptionStatus);
+        console.log('[订阅元素] viewProductsBtn:', viewProductsBtn);
+        console.log('[订阅元素] restorePurchasesBtn:', restorePurchasesBtn);
+    }
+    return {
+        subscriptionSection,
+        subscriptionStatus,
+        viewProductsBtn,
+        restorePurchasesBtn,
+        productsSection,
+        productsList
+    };
+}
+
+// 初始化订阅功能
+async function initSubscription() {
+    console.log('[订阅初始化] 开始初始化订阅功能...');
+    console.log('[订阅初始化] isCapacitorNative:', isCapacitorNative);
+    
+    // 获取订阅服务实例
+    const subscriptionService = getSubscriptionService();
+    console.log('[订阅初始化] subscriptionService:', typeof subscriptionService);
+    console.log('[订阅初始化] window.subscriptionService:', typeof window.subscriptionService);
+    console.log('[订阅初始化] Capacitor:', typeof window.Capacitor !== 'undefined');
+    console.log('[订阅初始化] Capacitor.Plugins:', window.Capacitor?.Plugins);
+    console.log('[订阅初始化] 所有插件:', window.Capacitor?.Plugins ? Object.keys(window.Capacitor.Plugins) : []);
+    
+    try {
+        // 如果是 iOS App，立即显示订阅区域（不等待检查）
+        if (isCapacitorNative) {
+            console.log('[订阅初始化] 检测到 iOS App，立即显示订阅区域');
+            showSubscriptionSection();
+            
+            // 检查订阅功能是否可用
+            if (!subscriptionService) {
+                console.warn('[订阅初始化] 订阅服务未加载，但已显示订阅区域');
+                updateSubscriptionStatus('订阅功能加载中...', 'loading');
+                
+                // 绑定事件
+                const elements = getSubscriptionElements();
+                if (elements.viewProductsBtn) {
+                    elements.viewProductsBtn.addEventListener('click', toggleProductsList);
+                }
+                if (elements.restorePurchasesBtn) {
+                    elements.restorePurchasesBtn.addEventListener('click', handleRestorePurchases);
+                }
+                return;
+            }
+
+            // 等待插件加载（最多等待 3 秒）
+            console.log('[订阅初始化] 等待插件加载...');
+            await new Promise(resolve => setTimeout(resolve, 1000)); // 等待 1 秒
+            
+            try {
+                const availability = await subscriptionService.checkAvailability();
+                console.log('[订阅初始化] 订阅功能可用性:', availability);
+                
+                if (!availability.available) {
+                    console.log('[订阅初始化] 订阅功能不可用:', availability.message);
+                    updateSubscriptionStatus('订阅功能暂时不可用', 'warning');
+                } else {
+                    // 加载订阅状态
+                    await loadSubscriptionStatus();
+                }
+            } catch (error) {
+                console.error('[订阅初始化] 检查订阅可用性失败:', error);
+                updateSubscriptionStatus('订阅功能加载中...', 'loading');
+            }
+            
+            // 绑定事件
+            const elements = getSubscriptionElements();
+            if (elements.viewProductsBtn) {
+                elements.viewProductsBtn.addEventListener('click', toggleProductsList);
+                console.log('[订阅初始化] 已绑定"查看订阅套餐"按钮事件');
+            }
+            if (elements.restorePurchasesBtn) {
+                elements.restorePurchasesBtn.addEventListener('click', handleRestorePurchases);
+                console.log('[订阅初始化] 已绑定"恢复购买"按钮事件');
+            }
+            
+            return;
+        }
+        
+        // 非 iOS App，按原逻辑处理
+        if (typeof subscriptionService === 'undefined') {
+            console.warn('[订阅初始化] 订阅服务未加载');
+            return;
+        }
+
+        const availability = await subscriptionService.checkAvailability();
+        
+        if (!availability.available) {
+            console.log('[订阅初始化] 订阅功能不可用:', availability.message);
+            return;
+        }
+
+        // 显示订阅区域
+        showSubscriptionSection();
+        
+        // 加载订阅状态
+        await loadSubscriptionStatus();
+        
+        // 绑定事件
+        const elements = getSubscriptionElements();
+        if (elements.viewProductsBtn) {
+            elements.viewProductsBtn.addEventListener('click', toggleProductsList);
+        }
+        if (elements.restorePurchasesBtn) {
+            elements.restorePurchasesBtn.addEventListener('click', handleRestorePurchases);
+        }
+        
+    } catch (error) {
+        console.error('[订阅初始化] 初始化订阅功能失败:', error);
+        // 即使出错，在 iOS App 中也显示订阅区域
+        if (isCapacitorNative) {
+            showSubscriptionSection();
+            updateSubscriptionStatus('订阅功能初始化失败', 'error');
+        }
+    }
+}
+
+// 显示订阅区域
+function showSubscriptionSection() {
+    console.log('[订阅显示] 尝试显示订阅区域...');
+    const elements = getSubscriptionElements();
+    const section = elements.subscriptionSection;
+    
+    console.log('[订阅显示] subscriptionSection 元素:', section);
+    
+    if (section) {
+        // 强制显示
+        section.style.setProperty('display', 'block', 'important');
+        section.style.setProperty('visibility', 'visible', 'important');
+        section.style.setProperty('opacity', '1', 'important');
+        console.log('[订阅显示] ✅ 订阅区域已显示');
+        
+        // 验证是否真的显示了
+        setTimeout(() => {
+            const computedStyle = window.getComputedStyle(section);
+            console.log('[订阅显示] 计算后的 display 值:', computedStyle.display);
+            console.log('[订阅显示] 计算后的 visibility 值:', computedStyle.visibility);
+            console.log('[订阅显示] 元素是否可见:', section.offsetParent !== null);
+            console.log('[订阅显示] 元素位置:', section.getBoundingClientRect());
+            
+            if (computedStyle.display === 'none' || section.offsetParent === null) {
+                console.warn('[订阅显示] ⚠️ 订阅区域仍然不可见，尝试其他方法...');
+                // 尝试移除内联样式中的 display: none
+                section.removeAttribute('style');
+                section.style.display = 'block';
+                section.style.visibility = 'visible';
+                section.style.opacity = '1';
+            }
+        }, 100);
+    } else {
+        console.error('[订阅显示] ❌ 找不到 subscription-section 元素！');
+        // 尝试通过其他方式查找
+        const allSections = document.querySelectorAll('[id*="subscription"]');
+        console.log('[订阅显示] 找到所有包含 subscription 的元素:', allSections);
+    }
+}
+
+// 隐藏订阅区域
+function hideSubscriptionSection() {
+    if (subscriptionSection) {
+        subscriptionSection.style.display = 'none';
+    }
+}
+
+// 加载订阅状态
+async function loadSubscriptionStatus() {
+    try {
+        const subscriptionService = getSubscriptionService();
+        if (!subscriptionService) {
+            updateSubscriptionStatus('订阅服务未加载', 'error');
+            return;
+        }
+        
+        updateSubscriptionStatus('加载中...', 'loading');
+        
+        const status = await subscriptionService.getSubscriptionStatus();
+        
+        if (status.hasActiveSubscription) {
+            const credits = status.credits || {};
+            const remaining = credits.remaining || 0;
+            const total = credits.total || 0;
+            updateSubscriptionStatus(
+                `已订阅 | 剩余下载次数: ${remaining}/${total}`,
+                'active'
+            );
+        } else {
+            updateSubscriptionStatus('未订阅 | 前5次处理免费', 'inactive');
+        }
+    } catch (error) {
+        console.error('加载订阅状态失败:', error);
+        updateSubscriptionStatus('加载失败，请重试', 'error');
+    }
+}
+
+// 更新订阅状态显示
+function updateSubscriptionStatus(message, type = 'info') {
+    const elements = getSubscriptionElements();
+    const status = elements.subscriptionStatus;
+    
+    if (!status) {
+        console.warn('[订阅状态] 找不到 subscription-status 元素');
+        return;
+    }
+    
+    const statusText = status.querySelector('.subscription-status-text');
+    if (statusText) {
+        statusText.textContent = message;
+        statusText.className = `subscription-status-text ${type}`;
+        console.log('[订阅状态] 已更新状态:', message, type);
+    } else {
+        console.warn('[订阅状态] 找不到 .subscription-status-text 元素');
+    }
+}
+
+// 切换产品列表显示
+async function toggleProductsList() {
+    const elements = getSubscriptionElements();
+    if (!elements.productsSection) return;
+    
+    const isVisible = elements.productsSection.style.display !== 'none';
+    
+    if (isVisible) {
+        elements.productsSection.style.display = 'none';
+        if (elements.viewProductsBtn) {
+            elements.viewProductsBtn.textContent = '查看订阅套餐';
+        }
+    } else {
+        elements.productsSection.style.display = 'block';
+        if (elements.viewProductsBtn) {
+            elements.viewProductsBtn.textContent = '收起订阅套餐';
+        }
+        
+        // 加载产品列表
+        await loadProductsList();
+    }
+}
+
+// 加载产品列表
+async function loadProductsList() {
+    try {
+        console.log('[产品列表] 开始加载产品列表...');
+        const elements = getSubscriptionElements();
+        if (!elements.productsList) {
+            console.error('[产品列表] ❌ productsList 元素不存在');
+            return;
+        }
+        
+        // 获取订阅服务实例
+        const subscriptionService = getSubscriptionService();
+        if (!subscriptionService) {
+            console.error('[产品列表] ❌ subscriptionService 未加载');
+            elements.productsList.innerHTML = '<p style="text-align: center; color: #f44336; padding: 20px;">订阅服务未加载，请刷新页面重试</p>';
+            return;
+        }
+        
+        elements.productsList.innerHTML = '<p style="text-align: center; color: #666; padding: 20px;">加载中...</p>';
+        
+        console.log('[产品列表] 调用 subscriptionService.getAvailableProducts()...');
+        console.log('[产品列表] subscriptionService:', subscriptionService);
+        console.log('[产品列表] typeof subscriptionService:', typeof subscriptionService);
+        
+        const products = await subscriptionService.getAvailableProducts();
+        console.log('[产品列表] ✅ 获取产品列表成功:', products);
+        
+        if (!products || products.length === 0) {
+            console.warn('[产品列表] ⚠️ 产品列表为空');
+            elements.productsList.innerHTML = '<p style="text-align: center; color: #666; padding: 20px;">暂无可用套餐</p>';
+            return;
+        }
+        
+        // 清空列表
+        elements.productsList.innerHTML = '';
+        
+        // 渲染产品列表
+        products.forEach(product => {
+            const productCard = createProductCard(product);
+            elements.productsList.appendChild(productCard);
+        });
+        
+        console.log('[产品列表] ✅ 产品列表渲染完成');
+        
+    } catch (error) {
+        console.error('[产品列表] ❌ 加载产品列表失败:', error);
+        console.error('[产品列表] 错误详情:', {
+            message: error.message,
+            stack: error.stack,
+            name: error.name
+        });
+        const elements = getSubscriptionElements();
+        if (elements.productsList) {
+            const errorMessage = error.message || '未知错误';
+            elements.productsList.innerHTML = `<p style="text-align: center; color: #f44336; padding: 20px;">加载失败: ${errorMessage}</p>`;
+        }
+    }
+}
+
+// 创建产品卡片
+function createProductCard(product) {
+    const card = document.createElement('div');
+    card.className = 'product-card';
+    
+    const title = document.createElement('h5');
+    title.textContent = product.displayName || product.productId;
+    card.appendChild(title);
+    
+    const price = document.createElement('p');
+    price.className = 'product-price';
+    price.textContent = product.displayPrice || '价格待定';
+    card.appendChild(price);
+    
+    const description = document.createElement('p');
+    description.className = 'product-description';
+    description.textContent = product.description || '';
+    card.appendChild(description);
+    
+    const buyBtn = document.createElement('button');
+    buyBtn.className = 'product-buy-btn';
+    buyBtn.textContent = '购买';
+    buyBtn.addEventListener('click', () => handlePurchase(product));
+    card.appendChild(buyBtn);
+    
+    return card;
+}
+
+// 处理购买
+async function handlePurchase(product) {
+    try {
+        // 获取订阅服务实例
+        const subscriptionService = getSubscriptionService();
+        if (!subscriptionService) {
+            updateSubscriptionStatus('订阅服务未加载', 'error');
+            return;
+        }
+        
+        // 获取产品信息（支持传入产品对象或产品ID）
+        let productId, productName;
+        if (typeof product === 'string') {
+            // 如果传入的是字符串（产品ID），从产品列表中查找
+            productId = product;
+            const products = await subscriptionService.getAvailableProducts();
+            const foundProduct = products.find(p => p.id === productId);
+            productName = foundProduct ? foundProduct.displayName : productId;
+        } else {
+            // 如果传入的是产品对象
+            productId = product.id || product.productId;
+            productName = product.displayName || product.name || productId;
+        }
+        
+        // 显示确认弹窗，使用产品名称
+        if (!confirm(`确认购买 ${productName}？`)) {
+            return;
+        }
+        
+        // 检查登录状态（购买需要用户认证）
+        const token = await subscriptionService.getUserToken();
+        if (!token) {
+            updateSubscriptionStatus('购买失败: 请先登录', 'error');
+            return;
+        }
+        
+        updateSubscriptionStatus('购买中...', 'loading');
+        
+        // 检测环境：iOS App 使用 StoreKit，Web 使用 Web 支付
+        const isIOSApp = window.Capacitor?.getPlatform() === 'ios';
+        
+        if (isIOSApp) {
+            // iOS App: 使用 StoreKit 购买
+            const result = await subscriptionService.purchase(productId);
+            
+            if (result.success) {
+                updateSubscriptionStatus('购买成功！', 'success');
+                // 重新加载订阅状态
+                setTimeout(() => {
+                    loadSubscriptionStatus();
+                }, 1000);
+            } else {
+                updateSubscriptionStatus(`购买失败: ${result.message || '未知错误'}`, 'error');
+            }
+        } else {
+            // Web: 使用 Web 支付
+            await handleWebPurchase(productId);
+        }
+    } catch (error) {
+        console.error('购买失败:', error);
+        updateSubscriptionStatus(`购买失败: ${error.message}`, 'error');
+    }
+}
+
+// 处理 Web 支付
+async function handleWebPurchase(productId) {
+    try {
+        // 检测用户环境，选择合适的支付方式
+        const userAgent = navigator.userAgent.toLowerCase();
+        const isWeChat = userAgent.includes('micromessenger');
+        
+        // 默认使用微信支付，如果在微信浏览器中
+        let paymentMethod = isWeChat ? 'wechat' : 'alipay';
+        
+        // 让用户选择支付方式（可选）
+        if (!isWeChat) {
+            const userChoice = confirm('选择支付方式：\n确定 = 支付宝\n取消 = 微信支付');
+            paymentMethod = userChoice ? 'alipay' : 'wechat';
+        }
+        
+        updateSubscriptionStatus('创建支付订单中...', 'loading');
+        
+        // 创建支付订单
+        const order = await window.webPaymentService.createPaymentOrder(productId, paymentMethod);
+        
+        if (!order || !order.payment_url) {
+            throw new Error('创建支付订单失败：未返回支付URL');
+        }
+        
+        updateSubscriptionStatus('跳转到支付页面...', 'loading');
+        
+        // 跳转到支付页面
+        // 注意：实际环境中，这里应该跳转到真实的支付页面
+        // 当前实现是模拟，实际需要配置支付商户号
+        if (order.payment_url.includes('payment/wechat') || order.payment_url.includes('payment/alipay')) {
+            // 这是模拟URL，实际应该跳转到真实的支付页面
+            alert(`支付订单已创建！\n订单号: ${order.order_id}\n金额: ¥${order.amount}\n\n注意：当前为模拟环境，需要配置真实的支付商户号才能进行实际支付。\n\n在实际环境中，将跳转到${paymentMethod === 'wechat' ? '微信' : '支付宝'}支付页面。`);
+            
+            // 模拟支付成功（仅用于测试）
+            const testPay = confirm('是否模拟支付成功？（仅用于测试）');
+            if (testPay) {
+                // 模拟支付成功，更新订阅状态
+                updateSubscriptionStatus('支付成功！', 'success');
+                setTimeout(() => {
+                    loadSubscriptionStatus();
+                    loadProductsList();
+                }, 1000);
+            } else {
+                updateSubscriptionStatus('支付已取消', 'warning');
+            }
+        } else {
+            // 真实支付URL，直接跳转
+            window.webPaymentService.redirectToPayment(order.payment_url);
+            
+            // 在新标签页打开支付状态查询页面（可选）
+            // window.open(`/payment/status?order_id=${order.order_id}`, '_blank');
+        }
+    } catch (error) {
+        console.error('Web 支付失败:', error);
+        updateSubscriptionStatus(`支付失败: ${error.message}`, 'error');
+    }
+}
+
+// 处理恢复购买
+async function handleRestorePurchases() {
+    try {
+        // 获取订阅服务实例
+        const subscriptionService = getSubscriptionService();
+        if (!subscriptionService) {
+            updateSubscriptionStatus('订阅服务未加载', 'error');
+            return;
+        }
+        
+        updateSubscriptionStatus('恢复中...', 'loading');
+        
+        const result = await subscriptionService.restorePurchases();
+        
+        if (result.success) {
+            updateSubscriptionStatus('恢复成功！', 'success');
+            // 重新加载订阅状态
+            setTimeout(() => {
+                loadSubscriptionStatus();
+            }, 1000);
+        } else {
+            updateSubscriptionStatus(`恢复失败: ${result.message || '未找到购买记录'}`, 'error');
+        }
+    } catch (error) {
+        console.error('恢复购买失败:', error);
+        updateSubscriptionStatus(`恢复失败: ${error.message}`, 'error');
+    }
+}
+
+// ==================== 订阅系统功能结束 ====================
+
 // 绑定事件
 processBtn.addEventListener('click', processVideo);
 // 下载按钮的事件在updateDownloadButton中动态绑定
-

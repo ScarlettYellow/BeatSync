@@ -1,11 +1,11 @@
 // BeatSync Service Worker
-// 版本：v1.3.33（修复iOS App CSS：在备用CSS中添加上传进度条max-width限制）
-const CACHE_NAME = 'beatsync-v1.3.33';
+// 版本：v1.3.41（修复多行状态显示颜色：处理中状态显示为黄色）
+const CACHE_NAME = 'beatsync-v1.3.41';
 const STATIC_CACHE_URLS = [
   '/',
   '/index.html',
-  '/style.css?v=20251262',
-  '/script.js?v=20251262',
+  '/style.css?v=20251275',
+  '/script.js?v=20251275',
   '/favicon.svg',
   '/favicon.ico'
 ];

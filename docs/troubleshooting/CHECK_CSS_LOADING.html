@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>CSS 加载诊断</title>
+</head>
+<body>
+    <h1>CSS 加载诊断工具</h1>
+    <div id="results"></div>
+    
+    <script>
+        async function diagnoseCSS() {
+            const results = document.getElementById('results');
+            let output = '<h2>诊断结果：</h2><pre>';
+            
+            // 1. 检查所有样式表
+            output += '=== 1. 样式表列表 ===\n';
+            Array.from(document.styleSheets).forEach((sheet, index) => {
+                try {
+                    const ruleCount = sheet.cssRules ? sheet.cssRules.length : 0;
+                    output += `样式表 ${index}: ${sheet.href || '(内联)'} - ${ruleCount} 条规则\n`;
+                } catch(e) {
+                    output += `样式表 ${index}: ${sheet.href || '(内联)'} - 错误: ${e.message}\n`;
+                }
+            });
+            
+            // 2. 检查 style.css
+            output += '\n=== 2. style.css 详情 ===\n';
+            const styleSheet = Array.from(document.styleSheets).find(s => s.href && s.href.includes('style.css'));
+            if (styleSheet) {
+                output += `找到 style.css: ${styleSheet.href}\n`;
+                try {
+                    output += `规则数量: ${styleSheet.cssRules.length}\n`;
+                    output += `规则列表:\n`;
+                    for (let i = 0; i < Math.min(styleSheet.cssRules.length, 20); i++) {
+                        const rule = styleSheet.cssRules[i];
+                        output += `  ${i + 1}. ${rule.selectorText || rule.type}\n`;
+                    }
+                    if (styleSheet.cssRules.length > 20) {
+                        output += `  ... 还有 ${styleSheet.cssRules.length - 20} 条规则\n`;
+                    }
+                } catch(e) {
+                    output += `无法访问规则: ${e.message}\n`;
+                }
+            } else {
+                output += '未找到 style.css\n';
+            }
+            
+            // 3. 尝试 fetch CSS 文件
+            output += '\n=== 3. Fetch CSS 内容 ===\n';
+            try {
+                const response = await fetch('capacitor://localhost/style.css?v=20251242');
+                const cssText = await response.text();
+                output += `CSS 文件大小: ${cssText.length} 字符\n`;
+                output += `CSS 前 200 字符:\n${cssText.substring(0, 200)}\n`;
+                
+                // 统计规则数量（简单统计）
+                const ruleMatches = cssText.match(/[^{}]*\{/g);
+                output += `粗略估计的规则数量: ${ruleMatches ? ruleMatches.length : 0}\n`;
+            } catch(e) {
+                output += `Fetch 失败: ${e.message}\n`;
+            }
+            
+            // 4. 检查特定元素的样式
+            output += '\n=== 4. 元素样式检查 ===\n';
+            const uploadBtn = document.querySelector('.upload-btn');
+            if (uploadBtn) {
+                const computed = getComputedStyle(uploadBtn);
+                output += `.upload-btn 样式:\n`;
+                output += `  background-color: ${computed.backgroundColor}\n`;
+                output += `  color: ${computed.color}\n`;
+                output += `  font-size: ${computed.fontSize}\n`;
+                output += `  padding: ${computed.padding}\n`;
+            } else {
+                output += '未找到 .upload-btn 元素\n';
+            }
+            
+            // 5. 检查内联样式
+            output += '\n=== 5. 内联样式检查 ===\n';
+            const inlineStyle = document.getElementById('app-specific-styles');
+            if (inlineStyle) {
+                output += `找到 app-specific-styles\n`;
+                output += `内联样式长度: ${inlineStyle.textContent.length} 字符\n`;
+            } else {
+                output += '未找到 app-specific-styles\n';
+            }
+            
+            output += '</pre>';
+            results.innerHTML = output;
+        }
+        
+        // 页面加载完成后执行
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', diagnoseCSS);
+        } else {
+            diagnoseCSS();
+        }
+    </script>
+</body>
+</html>
+
+
+
+
+
+
+
+

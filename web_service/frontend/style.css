@@ -191,6 +191,17 @@ h1 .title-cn {
     background-color: #E8F4FD;
 }
 
+.upload-area.disabled {
+    opacity: 0.6;
+    pointer-events: none;
+    cursor: not-allowed;
+}
+
+.upload-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
 .upload-area h2 {
     font-size: 20px;
     font-weight: 700;
@@ -337,7 +348,7 @@ h1 .title-cn {
     align-items: center;
     justify-content: center;
     text-align: center;
-    gap: 8px;
+    gap: 4px;
     font-size: 16px;
     line-height: 1.2;
     font-weight: 500;
@@ -392,9 +403,17 @@ h1 .title-cn {
 }
 
 .status-text {
-    font-size: var(--font-secondary-size);
+    font-size: 16px;
     line-height: var(--font-secondary-line);
     color: #666666;
+}
+
+.status-hint {
+    font-size: 14px;
+    line-height: 1.4;
+    color: #666666;
+    margin-top: 12px;
+    font-weight: normal;
 }
 
 .status-skeleton {
@@ -478,9 +497,172 @@ h1 .title-cn {
 
 /* 下载区域 */
 .download-section {
-    margin-top: 24px;
+    margin-top: 33px;
     text-align: center;
     flex: 0 0 auto;
+}
+
+/* 订阅管理区域样式 */
+.subscription-section {
+    margin-top: 32px;
+    margin-bottom: 24px;
+}
+
+.subscription-card {
+    background: white;
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.subscription-card h3 {
+    font-size: 18px;
+    font-weight: 600;
+    color: #333333;
+    margin-bottom: 16px;
+}
+
+.subscription-status {
+    margin-bottom: 16px;
+}
+
+.subscription-status-text {
+    font-size: 16px;
+    color: #666666;
+    line-height: 1.5;
+}
+
+.subscription-status-text.active {
+    color: #4CAF50;
+}
+
+.subscription-status-text.inactive {
+    color: #666666;
+}
+
+.subscription-status-text.warning {
+    color: #FF9800;
+}
+
+.subscription-status-text.error {
+    color: #f44336;
+}
+
+.subscription-status-text.loading {
+    color: #2196F3;
+}
+
+.subscription-status-text.success {
+    color: #4CAF50;
+}
+
+.subscription-actions {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.subscription-btn {
+    background-color: #007AFF;
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    font-size: 16px;
+    font-weight: 600;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+
+.subscription-btn:hover:not(:disabled) {
+    background-color: #0056b3;
+}
+
+.subscription-btn:disabled {
+    background-color: #CCCCCC;
+    cursor: not-allowed;
+    opacity: 0.7;
+}
+
+.subscription-btn.secondary {
+    background-color: #6c757d;
+}
+
+.subscription-btn.secondary:hover:not(:disabled) {
+    background-color: #5a6268;
+}
+
+.products-section {
+    margin-top: 20px;
+    background: white;
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.products-section h4 {
+    font-size: 18px;
+    font-weight: 600;
+    color: #333333;
+    margin-bottom: 16px;
+}
+
+.products-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.product-card {
+    border: 1px solid #E0E0E0;
+    border-radius: 8px;
+    padding: 16px;
+    background: #FAFAFA;
+}
+
+.product-card h5 {
+    font-size: 16px;
+    font-weight: 600;
+    color: #333333;
+    margin-bottom: 8px;
+}
+
+.product-price {
+    font-size: 20px;
+    font-weight: 700;
+    color: #007AFF;
+    margin-bottom: 8px;
+}
+
+.product-description {
+    font-size: 14px;
+    color: #666666;
+    margin-bottom: 12px;
+    line-height: 1.5;
+}
+
+.product-buy-btn {
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    font-size: 14px;
+    font-weight: 600;
+    border-radius: 6px;
+    cursor: pointer;
+    width: 100%;
+    transition: background-color 0.3s;
+}
+
+.product-buy-btn:hover:not(:disabled) {
+    background-color: #45a049;
+}
+
+.product-buy-btn:disabled {
+    background-color: #CCCCCC;
+    cursor: not-allowed;
+    opacity: 0.7;
 }
 
 .download-buttons {
